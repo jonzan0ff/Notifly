@@ -74,6 +74,16 @@ final class MenuBarController: NSObject {
     return menu
   }
 
+  // MARK: - Test hooks
+
+  /// Titles of the current menu items, rebuilt from the current AppState. Used
+  /// by `NotiflyMenuBarControllerTests` to verify the "Install Update" branch
+  /// appears when an available update is set — the install-flow test closure
+  /// that complements the visual orange-dot screenshot.
+  var menuItemTitlesForTesting: [String] {
+    buildMenu().items.map { $0.title }
+  }
+
   @objc private func checkForUpdates() {
     Task { await AppState.shared.checkForUpdate() }
   }
