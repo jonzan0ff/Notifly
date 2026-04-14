@@ -13,16 +13,14 @@ const SOCKET_PATH = process.env.NOTIFLY_SOCKET_PATH || path.join(
 );
 
 const LOG_PATH = "/tmp/notifly-vscode-extension.log";
-const DEBOUNCE_MS = 500;
+const DEBOUNCE_MS = 1500;
+const HEARTBEAT_MS = 2000;
 
 /**
- * Project grouping: walk up from a file path until the parent directory is
- * "Projects". The basename of the directory directly under Projects is the
- * project name. This matches the behavior of ~/.claude/hooks/notify-desktop.sh
- * so a sub-repo like Camp Clintondale/admin maps to "Camp Clintondale" — the
- * same name Notifly is tracking. Without this, the hook would tag a card
- * "Camp Clintondale" but the extension would ping "active" for "admin",
- * leaving the card forever.
+ * Walk up from a file path until the parent directory is "Projects". The
+ * basename of the directory directly under Projects is the project name. This
+ * groups sub-repos (Camp Clintondale/admin, Camp Clintondale/guest) under the
+ * top-level project name, matching ~/.claude/hooks/notify-desktop.sh.
  */
 function projectRootForPath(filePath: string): string | undefined {
   let dir = path.dirname(filePath);
@@ -36,18 +34,43 @@ function projectRootForPath(filePath: string): string | undefined {
   return undefined;
 }
 
-/** Append a line to /tmp/notifly-vscode-extension.log with a timestamp. */
 function log(msg: string): void {
   try {
     const ts = new Date().toISOString();
     fs.appendFileSync(LOG_PATH, `[${ts}] ${msg}\n`);
   } catch {
-    // best-effort; we don't want logging failures to crash the extension
+    // best effort
   }
 }
 
+/**
+ * True if the active tab in any tab group is a Claude Code webview.
+ * Matches by viewType (authoritative) with a label fallback.
+ */
+function isClaudeTabActive(): boolean {
+  try {
+    const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+    if (!tab) return false;
+    const input = tab.input as { viewType?: string } | undefined;
+    const viewType = input && typeof input.viewType === "string" ? input.viewType : "";
+    if (viewType.indexOf("claudeVSCodePanel") !== -1) return true;
+    const label = tab.label || "";
+    if (/claude/i.test(label)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function currentWorkspaceProject(): string | undefined {
+  const folder = vscode.workspace.workspaceFolders?.[0];
+  if (!folder) return undefined;
+  const viaRoot = projectRootForPath(folder.uri.fsPath + "/_");
+  return viaRoot || folder.name;
+}
+
 export function activate(context: vscode.ExtensionContext) {
-  log(`activate — socket=${SOCKET_PATH} debounce=${DEBOUNCE_MS}ms`);
+  log(`activate — socket=${SOCKET_PATH} debounce=${DEBOUNCE_MS}ms heartbeat=${HEARTBEAT_MS}ms`);
 
   const output = vscode.window.createOutputChannel("Notifly");
   output.appendLine(`[Notifly] extension activated at ${new Date().toISOString()}`);
@@ -60,14 +83,12 @@ export function activate(context: vscode.ExtensionContext) {
     const last = lastPingByProject.get(project) ?? 0;
     const elapsed = now - last;
     if (elapsed < DEBOUNCE_MS) {
-      log(`debounced ${project} (${elapsed}ms since last, reason=${reason})`);
       return;
     }
     lastPingByProject.set(project, now);
 
     if (!fs.existsSync(SOCKET_PATH)) {
-      log(`socket missing at ${SOCKET_PATH} — skipping ${project}`);
-      output.appendLine(`[Notifly] socket missing — is the Notifly app running?`);
+      log(`socket missing — skipping ${project} (${reason})`);
       return;
     }
 
@@ -77,7 +98,6 @@ export function activate(context: vscode.ExtensionContext) {
     const client = net.createConnection(SOCKET_PATH, () => {
       client.write(payload, () => {
         client.end();
-        log(`ok wrote ${payload.trim()}`);
       });
     });
     client.on("error", (err) => {
@@ -86,38 +106,55 @@ export function activate(context: vscode.ExtensionContext) {
     });
   };
 
-  const projectFor = (uri: vscode.Uri): string | undefined => {
-    const folder = vscode.workspace.getWorkspaceFolder(uri);
-    if (folder) {
-      const folderRoot = projectRootForPath(folder.uri.fsPath + "/_");
-      if (folderRoot) {
-        log(`projectFor(${uri.fsPath}) via workspace → ${folderRoot}`);
-        return folderRoot;
-      }
-      log(`projectFor(${uri.fsPath}) fallback to folder.name → ${folder.name}`);
-      return folder.name;
+  const pingIfEngaged = (reason: string) => {
+    const project = currentWorkspaceProject();
+    if (!project) return;
+    const focused = vscode.window.state.focused;
+    const claudeActive = isClaudeTabActive();
+    if (focused && claudeActive) {
+      sendActive(project, reason);
     }
-    const fallback = projectRootForPath(uri.fsPath);
-    log(`projectFor(${uri.fsPath}) no workspace → ${fallback}`);
-    return fallback;
   };
 
+  // Signal 1: file typing (file-document change). Keeps the old behavior
+  // working for users who are editing source files, not chatting.
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.contentChanges.length === 0) return;
-      // Only handle real file documents — skip settings previews, output
-      // panels, webviews, untitled scratch, etc.
-      if (e.document.uri.scheme !== "file") {
-        log(`skip non-file scheme: ${e.document.uri.scheme}`);
-        return;
-      }
-      log(`onDidChangeTextDocument uri=${e.document.uri.fsPath} changes=${e.contentChanges.length}`);
-      const project = projectFor(e.document.uri);
-      if (project) sendActive(project, "onDidChangeTextDocument");
+      if (e.document.uri.scheme !== "file") return;
+      const project = projectRootForPath(e.document.uri.fsPath)
+        || vscode.workspace.getWorkspaceFolder(e.document.uri)?.name;
+      if (project) sendActive(project, "text-change");
     })
   );
 
-  log(`event handler registered`);
+  // Signal 2: VS Code window gains OS focus with a Claude tab already active.
+  context.subscriptions.push(
+    vscode.window.onDidChangeWindowState((e) => {
+      if (e.focused) pingIfEngaged("window-focus");
+    })
+  );
+
+  // Signal 3: active tab becomes a Claude webview (from another tab, or a new open).
+  context.subscriptions.push(
+    vscode.window.tabGroups.onDidChangeTabs(() => {
+      pingIfEngaged("tab-change");
+    })
+  );
+  context.subscriptions.push(
+    vscode.window.tabGroups.onDidChangeTabGroups(() => {
+      pingIfEngaged("tab-group-change");
+    })
+  );
+
+  // Signal 4: heartbeat while the window is focused and the Claude tab is active.
+  // Covers "user is already sitting in the prompt field when a card arrives".
+  const heartbeat = setInterval(() => {
+    pingIfEngaged("heartbeat");
+  }, HEARTBEAT_MS);
+  context.subscriptions.push({ dispose: () => clearInterval(heartbeat) });
+
+  log(`handlers registered`);
 }
 
 export function deactivate() {}

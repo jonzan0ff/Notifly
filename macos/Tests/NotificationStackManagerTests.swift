@@ -71,6 +71,29 @@ final class NotificationStackManagerTests: XCTestCase {
     XCTAssertTrue(NotificationStackManager.shared.events.isEmpty)
   }
 
+  func test_submit_after_clearProject_is_suppressed_within_window() async throws {
+    NotificationStackManager.shared.clearProject("Dorothy")
+    try await waitForMainQueue()
+    NotificationStackManager.shared.submit(.fixture(project: "Dorothy"))
+    try await waitForMainQueue()
+    XCTAssertTrue(
+      NotificationStackManager.shared.events.isEmpty,
+      "card submitted within suppression window after active ping must be dropped"
+    )
+  }
+
+  func test_suppression_is_per_project() async throws {
+    NotificationStackManager.shared.clearProject("Dorothy")
+    try await waitForMainQueue()
+    NotificationStackManager.shared.submit(.fixture(project: "Camp"))
+    try await waitForMainQueue()
+    XCTAssertEqual(
+      NotificationStackManager.shared.events.map(\.project),
+      ["Camp"],
+      "suppression for Dorothy must not affect Camp"
+    )
+  }
+
   func test_dismiss_removes_specific_event_by_id() async throws {
     let target = NotiflyEvent.fixture(project: "Dorothy")
     NotificationStackManager.shared.submit(target)
