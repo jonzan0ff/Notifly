@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Notifly — the best Claude notifications ever</title>
+<style>
+  :root {
+    --card-bg: rgba(28, 28, 32, 0.62);
+    --card-border-top: rgba(255, 255, 255, 0.14);
+    --card-border: rgba(255, 255, 255, 0.06);
+    --text-primary: rgba(255, 255, 255, 0.97);
+    --text-secondary: rgba(255, 255, 255, 0.62);
+    --text-tertiary: rgba(255, 255, 255, 0.38);
+    --code-bg: rgba(255, 255, 255, 0.08);
+    --code-border: rgba(255, 255, 255, 0.10);
+
+    --accent-done: #32d74b;
+    --accent-attention: #ff9f0a;
+    --accent-stopped: #ff453a;
+    --accent-thinking: #64d2ff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    font-family: -apple-system, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  body {
+    /* Rich macOS Sequoia-style wallpaper gradient */
+    background:
+      radial-gradient(ellipse 80% 60% at 80% 15%, rgba(255, 100, 160, 0.25) 0%, transparent 60%),
+      radial-gradient(ellipse 90% 70% at 15% 85%, rgba(80, 120, 255, 0.30) 0%, transparent 65%),
+      radial-gradient(ellipse 60% 50% at 50% 50%, rgba(180, 80, 220, 0.18) 0%, transparent 70%),
+      linear-gradient(160deg, #1a0a2a 0%, #0d0518 60%, #050210 100%);
+    min-height: 100vh;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Subtle grain/noise texture */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    opacity: 0.04;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+
+  /* ——— Menu bar ——— */
+  .menu-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 28px;
+    background: rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    color: rgba(255,255,255,0.92);
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 1;
+    border-bottom: 0.5px solid rgba(255,255,255,0.08);
+  }
+  .menu-bar .apple { font-size: 15px; margin-right: 16px; }
+  .menu-bar .app-name { margin-right: 16px; font-weight: 600; }
+  .menu-bar span.menu-item { margin-right: 14px; }
+  .menu-bar .spacer { flex: 1; }
+  .menu-bar .status-icons {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-size: 12px;
+  }
+  .menu-bar .notifly-icon {
+    width: 14px; height: 14px;
+    border-radius: 3px;
+    background: linear-gradient(135deg, #fff, #c8c8d0);
+    position: relative;
+  }
+
+  /* ——— Notification stack ——— */
+  .stack {
+    position: fixed;
+    top: 42px;
+    right: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 2;
+  }
+
+  /* ——— Card ——— */
+  .card {
+    width: 392px;
+    background: var(--card-bg);
+    backdrop-filter: blur(50px) saturate(200%);
+    -webkit-backdrop-filter: blur(50px) saturate(200%);
+    border: 0.5px solid var(--card-border);
+    border-top: 0.5px solid var(--card-border-top);
+    border-radius: 18px;
+    box-shadow:
+      0 22px 60px rgba(0, 0, 0, 0.48),
+      0 6px 18px rgba(0, 0, 0, 0.32),
+      0 1px 2px rgba(0, 0, 0, 0.4),
+      inset 0 0.5px 0 rgba(255,255,255,0.10);
+    padding: 16px 16px 14px 16px;
+    color: var(--text-primary);
+    position: relative;
+    cursor: default;
+    transform-origin: top right;
+    animation: slideIn 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateX(40px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+  }
+
+  /* Top accent line, color varies by event */
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 16px; right: 16px;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--accent), transparent);
+    opacity: 0.7;
+  }
+  .card.done       { --accent: var(--accent-done); }
+  .card.attention  { --accent: var(--accent-attention); }
+  .card.stopped    { --accent: var(--accent-stopped); }
+  .card.thinking   { --accent: var(--accent-thinking); }
+
+  /* Attention state: subtle outer glow */
+  .card.attention {
+    box-shadow:
+      0 22px 60px rgba(0, 0, 0, 0.48),
+      0 6px 18px rgba(0, 0, 0, 0.32),
+      0 0 0 1px rgba(255, 159, 10, 0.18),
+      0 0 28px rgba(255, 159, 10, 0.12),
+      inset 0 0.5px 0 rgba(255,255,255,0.10);
+    animation: slideIn 0.45s cubic-bezier(0.16, 1, 0.3, 1), breathe 3.2s ease-in-out infinite 0.45s;
+  }
+  @keyframes breathe {
+    0%, 100% { box-shadow:
+      0 22px 60px rgba(0, 0, 0, 0.48),
+      0 6px 18px rgba(0, 0, 0, 0.32),
+      0 0 0 1px rgba(255, 159, 10, 0.18),
+      0 0 28px rgba(255, 159, 10, 0.12),
+      inset 0 0.5px 0 rgba(255,255,255,0.10); }
+    50%      { box-shadow:
+      0 22px 60px rgba(0, 0, 0, 0.48),
+      0 6px 18px rgba(0, 0, 0, 0.32),
+      0 0 0 1px rgba(255, 159, 10, 0.28),
+      0 0 44px rgba(255, 159, 10, 0.22),
+      inset 0 0.5px 0 rgba(255,255,255,0.10); }
+  }
+
+  /* ——— Head row (icon + project + time) ——— */
+  .head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 11px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, "SF Pro Display", sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    color: white;
+    letter-spacing: -0.4px;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.3),
+      inset 0 -1px 0 rgba(0,0,0,0.15),
+      0 2px 6px rgba(0,0,0,0.3);
+    position: relative;
+  }
+  .icon::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 11px;
+    box-shadow: 0 0 16px 0 var(--icon-glow, transparent);
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  .icon.dorothy { background: linear-gradient(135deg, #ff5b8a 0%, #d0295f 100%); --icon-glow: rgba(255, 91, 138, 0.4); }
+  .icon.camp    { background: linear-gradient(135deg, #4ade80 0%, #16a34a 100%); --icon-glow: rgba(74, 222, 128, 0.4); }
+  .icon.spamo   { background: linear-gradient(135deg, #ffa94d 0%, #e8691c 100%); --icon-glow: rgba(255, 169, 77, 0.4); }
+  .icon.hometeam { background: linear-gradient(135deg, #5aa6ff 0%, #2057c8 100%); --icon-glow: rgba(90, 166, 255, 0.4); }
+
+  .head-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .project-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .project {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .time {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Event pill */
+  .event {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px 2px 6px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    text-transform: uppercase;
+    width: fit-content;
+    border: 0.5px solid rgba(255,255,255,0.08);
+  }
+  .event svg { width: 11px; height: 11px; }
+  .event.done {
+    color: var(--accent-done);
+    background: rgba(50, 215, 75, 0.10);
+  }
+  .event.attention {
+    color: var(--accent-attention);
+    background: rgba(255, 159, 10, 0.12);
+  }
+  .event.stopped {
+    color: var(--accent-stopped);
+    background: rgba(255, 69, 58, 0.10);
+  }
+  .event.thinking {
+    color: var(--accent-thinking);
+    background: rgba(100, 210, 255, 0.10);
+  }
+
+  /* ——— Message body ——— */
+  .message {
+    font-size: 13.5px;
+    line-height: 1.42;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+    letter-spacing: -0.1px;
+  }
+  .message code {
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    font-size: 12px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--code-bg);
+    border: 0.5px solid var(--code-border);
+    color: #ffd59c;
+    white-space: nowrap;
+  }
+  .message .path {
+    color: #a5d8ff;
+  }
+
+  /* ——— Footer strip (meta + actions) ——— */
+  .foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding-top: 9px;
+    border-top: 0.5px solid rgba(255,255,255,0.06);
+    min-height: 22px;
+  }
+  .meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    font-size: 10.5px;
+    color: var(--text-tertiary);
+    overflow: hidden;
+  }
+  .meta .sep {
+    opacity: 0.4;
+  }
+  .meta .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .meta svg { width: 10px; height: 10px; opacity: 0.8; }
+
+  .actions {
+    display: flex;
+    gap: 6px;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+  }
+  .card:hover .actions { opacity: 1; }
+  .action {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    background: rgba(255,255,255,0.06);
+    border: 0.5px solid rgba(255,255,255,0.10);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  }
+  .action:hover {
+    background: rgba(255,255,255,0.14);
+    color: var(--text-primary);
+    transform: scale(1.05);
+  }
+  .action svg { width: 13px; height: 13px; }
+
+  /* For attention card: show primary reply inline */
+  .reply-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 2px;
+    margin-bottom: 10px;
+  }
+  .reply-btn {
+    flex: 1;
+    padding: 7px 10px;
+    border-radius: 9px;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 0.5px solid transparent;
+  }
+  .reply-btn.primary {
+    background: rgba(255, 159, 10, 0.16);
+    color: #ffcd7a;
+    border-color: rgba(255, 159, 10, 0.3);
+  }
+  .reply-btn.primary:hover {
+    background: rgba(255, 159, 10, 0.26);
+    color: #ffdea0;
+  }
+  .reply-btn.secondary {
+    background: rgba(255,255,255,0.06);
+    color: var(--text-secondary);
+    border-color: rgba(255,255,255,0.1);
+  }
+  .reply-btn.secondary:hover {
+    background: rgba(255,255,255,0.12);
+    color: var(--text-primary);
+  }
+
+  /* Small "+N more" collapsed card */
+  .more {
+    width: 392px;
+    text-align: center;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    padding: 8px 12px;
+    background: rgba(20, 20, 22, 0.45);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-radius: 14px;
+    border: 0.5px solid rgba(255,255,255,0.05);
+    cursor: pointer;
+    transition: color 0.15s ease;
+  }
+  .more:hover { color: var(--text-secondary); }
+
+  /* Instruction label at bottom */
+  .hint {
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.38);
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    background: rgba(0,0,0,0.3);
+    padding: 6px 12px;
+    border-radius: 999px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 0.5px solid rgba(255,255,255,0.06);
+  }
+</style>
+</head>
+<body>
+
+  <!-- ——— Menu bar ——— -->
+  <div class="menu-bar">
+    <span class="apple">&#63743;</span>
+    <span class="app-name">Visual Studio Code</span>
+    <span class="menu-item">File</span>
+    <span class="menu-item">Edit</span>
+    <span class="menu-item">Selection</span>
+    <span class="menu-item">View</span>
+    <span class="menu-item">Go</span>
+    <span class="spacer"></span>
+    <span class="status-icons">
+      <span class="notifly-icon" title="Notifly"></span>
+      <span>&#9728;</span>
+      <span>&#128268;</span>
+      <span>Tue 9:42 PM</span>
+    </span>
+  </div>
+
+  <!-- ——— Stack ——— -->
+  <div class="stack">
+
+    <!-- ─────────────────────────────── -->
+    <!-- CARD 1: needs attention (Dorothy) -->
+    <!-- ─────────────────────────────── -->
+    <div class="card attention">
+      <div class="head">
+        <div class="icon dorothy">D</div>
+        <div class="head-text">
+          <div class="project-row">
+            <div class="project">Dorothy</div>
+            <div class="time">just now</div>
+          </div>
+          <div class="event attention">
+            <svg viewBox="0 0 16 16" fill="none"><path d="M8 4v5M8 11.5v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/></svg>
+            needs you
+          </div>
+        </div>
+      </div>
+      <div class="message">
+        Ready to run <code>supabase db push</code> against <code class="path">production</code>. This will apply 3 pending migrations. Proceed?
+      </div>
+      <div class="reply-row">
+        <div class="reply-btn primary">Yes, proceed</div>
+        <div class="reply-btn secondary">No</div>
+      </div>
+      <div class="foot">
+        <div class="meta">
+          <span class="chip">
+            <svg viewBox="0 0 16 16" fill="none"><circle cx="5" cy="5" r="2" stroke="currentColor" stroke-width="1.3"/><circle cx="11" cy="11" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 7v4" stroke="currentColor" stroke-width="1.3"/></svg>
+            main
+          </span>
+          <span class="sep">·</span>
+          <span>turn 14</span>
+          <span class="sep">·</span>
+          <span>sonnet 4.6</span>
+        </div>
+        <div class="actions">
+          <div class="action" title="Focus VS Code">
+            <svg viewBox="0 0 16 16" fill="none"><path d="M3 3h4M3 3v4M13 3h-4M13 3v4M3 13h4M3 13v-4M13 13h-4M13 13v-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          </div>
+          <div class="action" title="Copy message">
+            <svg viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M11 14H3.5A1.5 1.5 0 012 12.5V5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <div class="action" title="Dismiss">
+            <svg viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─────────────────────────────── -->
+    <!-- CARD 2: done (Camp Clintondale) -->
+    <!-- ─────────────────────────────── -->
+    <div class="card done">
+      <div class="head">
+        <div class="icon camp">CC</div>
+        <div class="head-text">
+          <div class="project-row">
+            <div class="project">Camp Clintondale</div>
+            <div class="time">2m ago</div>
+          </div>
+          <div class="event done">
+            <svg viewBox="0 0 16 16" fill="none"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            done
+          </div>
+        </div>
+      </div>
+      <div class="message">
+        Pushed guest check-in rename. All 42 Playwright tests passed against <code class="path">localhost</code> and <code class="path">production</code>. Visual baselines updated.
+      </div>
+      <div class="foot">
+        <div class="meta">
+          <span class="chip">
+            <svg viewBox="0 0 16 16" fill="none"><path d="M3 3l10 5-10 5V3z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+            main
+          </span>
+          <span class="sep">·</span>
+          <span>7 files</span>
+          <span class="sep">·</span>
+          <span>+214 −38</span>
+          <span class="sep">·</span>
+          <span>4m turn</span>
+        </div>
+        <div class="actions">
+          <div class="action" title="Focus VS Code">
+            <svg viewBox="0 0 16 16" fill="none"><path d="M3 3h4M3 3v4M13 3h-4M13 3v4M3 13h4M3 13v-4M13 13h-4M13 13v-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          </div>
+          <div class="action" title="Copy message">
+            <svg viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M11 14H3.5A1.5 1.5 0 012 12.5V5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <div class="action" title="Dismiss">
+            <svg viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─────────────────────────────── -->
+    <!-- CARD 3: stopped (SPAMASAURUS) -->
+    <!-- ─────────────────────────────── -->
+    <div class="card stopped">
+      <div class="head">
+        <div class="icon spamo">S</div>
+        <div class="head-text">
+          <div class="project-row">
+            <div class="project">SPAMASAURUS</div>
+            <div class="time">5m ago</div>
+          </div>
+          <div class="event stopped">
+            <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 5l6 6M11 5l-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            stopped
+          </div>
+        </div>
+      </div>
+      <div class="message">
+        Gmail OAuth token expired mid-turn. Claude halted before the inbox sweep completed. Re-authenticate to continue where it left off.
+      </div>
+      <div class="foot">
+        <div class="meta">
+          <span class="chip">
+            <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><path d="M8 4v4l2.5 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            halted 5m ago
+          </span>
+          <span class="sep">·</span>
+          <span>turn 7/unfinished</span>
+        </div>
+        <div class="actions">
+          <div class="action" title="Focus VS Code">
+            <svg viewBox="0 0 16 16" fill="none"><path d="M3 3h4M3 3v4M13 3h-4M13 3v4M3 13h4M3 13v-4M13 13h-4M13 13v-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          </div>
+          <div class="action" title="Copy message">
+            <svg viewBox="0 0 16 16" fill="none"><rect x="5" y="2" width="9" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M11 14H3.5A1.5 1.5 0 012 12.5V5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <div class="action" title="Dismiss">
+            <svg viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─────────────────────────────── -->
+    <!-- CARD 4: +N more collapsed -->
+    <!-- ─────────────────────────────── -->
+    <div class="more">
+      2 older notifications · HomeTeam, Print Status
+    </div>
+
+  </div>
+
+  <div class="hint">hover any card to reveal actions · click to focus VS Code · type in VS Code to auto-clear</div>
+
+</body>
+</html>

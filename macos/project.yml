@@ -1,0 +1,89 @@
+name: Notifly
+options:
+  bundleIdPrefix: com.Notiflyz
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "15.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    ENABLE_HARDENED_RUNTIME: NO
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: Q4MZVR4MU5
+    ALWAYS_SEARCH_USER_PATHS: NO
+  configs:
+    Debug:
+      ENABLE_TESTABILITY: YES
+
+targets:
+
+  Notifly:
+    type: application
+    platform: macOS
+    sources:
+      - Notifly
+    entitlements:
+      path: Config/Notifly.entitlements
+    settings:
+      base:
+        PRODUCT_NAME: Notifly
+        PRODUCT_BUNDLE_IDENTIFIER: com.Notiflyz.app
+        SWIFT_MODULE_NAME: Notifly
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_FILE: Notifly/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - target: NotiflyCLI
+        embed: true
+        codeSign: true
+
+  NotiflyCLI:
+    type: tool
+    platform: macOS
+    sources:
+      - NotiflyCLI
+    settings:
+      base:
+        PRODUCT_NAME: notifly
+        PRODUCT_BUNDLE_IDENTIFIER: com.Notiflyz.app.cli
+        SWIFT_MODULE_NAME: NotiflyCLI
+        SKIP_INSTALL: YES
+        INSTALL_PATH: "$(CONTENTS_FOLDER_PATH)/Resources"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+
+  NotiflyTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests
+    settings:
+      base:
+        PRODUCT_NAME: NotiflyTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.Notiflyz.app.tests
+        SWIFT_MODULE_NAME: NotiflyTests
+        INFOPLIST_FILE: Tests/Info.plist
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Notifly.app/Contents/MacOS/Notifly"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+    dependencies:
+      - target: Notifly
+
+schemes:
+  Notifly:
+    build:
+      targets:
+        Notifly: all
+        NotiflyCLI: [build]
+        NotiflyTests: [test]
+    run:
+      config: Debug
+    test:
+      targets:
+        - NotiflyTests
+      config: Debug
+    profile:
+      config: Release
+    archive:
+      config: Release

@@ -1,0 +1,16 @@
+.DS_Store
+
+# macOS / Xcode
+macos/build/
+macos/**/DerivedData/
+**/xcuserdata/
+**/UserInterfaceState.xcuserstate
+
+# Node / VS Code extension
+vscode-extension/node_modules/
+vscode-extension/out/
+vscode-extension/*.vsix
+
+# Working / temp files
+/tmp/
+*.log
