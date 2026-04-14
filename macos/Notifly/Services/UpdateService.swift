@@ -54,9 +54,37 @@ final class UpdateService: NSObject, @unchecked Sendable {
     return isNewer(release.version, than: current) ? release : nil
   }
 
+  // MARK: - Destination / relaunch overrides (for testing)
+
+  /// Install destination path. Defaults to `/Applications/Notifly.app`.
+  /// Overridable via `NOTIFLY_INSTALL_DESTINATION` env var so integration
+  /// tests can target a temp path instead of the sudo-gated /Applications/.
+  static var installDestination: URL {
+    if let override = ProcessInfo.processInfo.environment["NOTIFLY_INSTALL_DESTINATION"] {
+      return URL(fileURLWithPath: override)
+    }
+    return URL(fileURLWithPath: "/Applications/Notifly.app")
+  }
+
+  /// Whether to skip the `open` + `NSApplication.terminate` step at the end
+  /// of install. Always off in production; set to `1` in tests so we don't
+  /// bring up the new app and tear down the test host.
+  static var skipRelaunch: Bool {
+    ProcessInfo.processInfo.environment["NOTIFLY_SKIP_RELAUNCH"] == "1"
+  }
+
   // MARK: - Download & install
 
   func downloadAndInstall(release: GitHubRelease, onProgress: @escaping (Double) -> Void) async throws {
+    let zipURL = try await download(release: release, onProgress: onProgress)
+    try await install(zipAt: zipURL)
+  }
+
+  /// Downloads the first `.zip` asset in the release to a stable temp path,
+  /// returning its URL. Separated from `install(zipAt:)` so integration tests
+  /// can exercise the extract + move + relaunch logic against a fixture zip
+  /// without needing a live network.
+  func download(release: GitHubRelease, onProgress: @escaping (Double) -> Void) async throws -> URL {
     guard let asset = release.assets.first(where: { $0.name.hasSuffix(".zip") }) else {
       throw UpdateError.noZipAsset
     }
@@ -74,10 +102,20 @@ final class UpdateService: NSObject, @unchecked Sendable {
     let zipPath = FileManager.default.temporaryDirectory.appendingPathComponent(asset.name)
     try? FileManager.default.removeItem(at: zipPath)
     try FileManager.default.moveItem(at: tempURL, to: zipPath)
+    return zipPath
+  }
 
-    let extractDir = FileManager.default.temporaryDirectory.appendingPathComponent("Notifly-update")
+  /// Extracts a downloaded zip, finds the `.app` bundle inside, replaces the
+  /// install destination with it, then relaunches Notifly from the new
+  /// location and terminates the current process.
+  ///
+  /// In test mode (NOTIFLY_SKIP_RELAUNCH=1) the relaunch + terminate steps
+  /// are skipped so the test host isn't killed.
+  func install(zipAt zipPath: URL) async throws {
+    let extractDir = FileManager.default.temporaryDirectory.appendingPathComponent("Notifly-update-\(UUID().uuidString)")
     try? FileManager.default.removeItem(at: extractDir)
     try FileManager.default.createDirectory(at: extractDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: extractDir) }
 
     let ditto = Process()
     ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
@@ -91,11 +129,18 @@ final class UpdateService: NSObject, @unchecked Sendable {
       throw UpdateError.noAppInZip
     }
 
-    let destination = URL(fileURLWithPath: "/Applications/Notifly.app")
+    let destination = Self.installDestination
+    // Ensure the destination directory exists (parent only — the .app itself
+    // will be placed as a directory at the destination path).
+    let parent = destination.deletingLastPathComponent()
+    try? FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+
     if FileManager.default.fileExists(atPath: destination.path) {
       try FileManager.default.removeItem(at: destination)
     }
     try FileManager.default.moveItem(at: appBundle, to: destination)
+
+    if Self.skipRelaunch { return }
 
     let open = Process()
     open.executableURL = URL(fileURLWithPath: "/usr/bin/open")

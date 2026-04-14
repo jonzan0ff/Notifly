@@ -16,6 +16,7 @@
 		79B6312AF0A9DE85BD9A4CBB /* ProjectIconTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFBEEB4C8D7E961AA30B4881 /* ProjectIconTests.swift */; };
 		7CF4C2850D657E5A88A850EB /* NotificationStackWindowControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C70D97A728722F81208CCAD /* NotificationStackWindowControllerTests.swift */; };
 		833135D6ADA5FA749595A3CC /* NotiflyEventTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AC9FC957DC32C140AEFED7E /* NotiflyEventTests.swift */; };
+		8C94F13915AF58E4B891619E /* UpdateServiceInstallTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B6011D7190EC70AE50457FD /* UpdateServiceInstallTests.swift */; };
 		975C72E29DF88806439D329C /* ProjectGrouping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E8AD14AE96D11109ED13D3E /* ProjectGrouping.swift */; };
 		A49094BF599C463AE4186EBF /* NotificationCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 472072965995D5BB34088F36 /* NotificationCardView.swift */; };
 		A6AC55E293321EA2FB4B87D4 /* NotiflyEventIconTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D19EE951F7CBCE1E4EB1F7C2 /* NotiflyEventIconTests.swift */; };
@@ -61,6 +62,7 @@
 		3469EFCE9F26E1AE803DB7B4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		369A320619A08BEFDEBB0401 /* CardActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardActionTests.swift; sourceTree = "<group>"; };
 		372A5CC4A98ECA93E8BFDDEB /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		3B6011D7190EC70AE50457FD /* UpdateServiceInstallTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateServiceInstallTests.swift; sourceTree = "<group>"; };
 		3BB263A8ED0C4C22009E5394 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		3EEB84C4244692557684CA7F /* IPCMessageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPCMessageTests.swift; sourceTree = "<group>"; };
 		443A6E930F8AEC1852BC5E63 /* ProjectGroupingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectGroupingTests.swift; sourceTree = "<group>"; };
@@ -120,6 +122,7 @@
 				7AC9FC957DC32C140AEFED7E /* NotiflyEventTests.swift */,
 				443A6E930F8AEC1852BC5E63 /* ProjectGroupingTests.swift */,
 				EFBEEB4C8D7E961AA30B4881 /* ProjectIconTests.swift */,
+				3B6011D7190EC70AE50457FD /* UpdateServiceInstallTests.swift */,
 				CB1274CD5566E4DEABE3734E /* UpdateServiceTests.swift */,
 			);
 			path = Tests;
@@ -313,6 +316,7 @@
 				833135D6ADA5FA749595A3CC /* NotiflyEventTests.swift in Sources */,
 				D928C452EC0072DA485D69F0 /* ProjectGroupingTests.swift in Sources */,
 				79B6312AF0A9DE85BD9A4CBB /* ProjectIconTests.swift in Sources */,
+				8C94F13915AF58E4B891619E /* UpdateServiceInstallTests.swift in Sources */,
 				B92AE6FA322282776262F413 /* UpdateServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
