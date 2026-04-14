@@ -9,7 +9,7 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="Notifly"
 REPO="jonzan0ff/Notifly"
-NOTARY_PROFILE="PrintStatus-Notary"  # keychain profile, shared across all Mac apps
+NOTARY_PROFILE="jonzan0ff-notary"  # keychain profile, shared across all Mac apps
 PROJECT_SUBDIR="macos"
 ARCHIVE_PATH="/tmp/${APP_NAME}.xcarchive"
 EXPORT_DIR="/tmp/${APP_NAME}-export"

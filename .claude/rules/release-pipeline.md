@@ -34,7 +34,7 @@ The project has a fully-wired Apple-approved Developer ID distribution pipeline.
 ## Shared infrastructure
 
 - Developer ID Application certificate is in the login keychain (Team ID `Q4MZVR4MU5`)
-- Notarytool keychain profile is named `PrintStatus-Notary` — shared across all five Mac apps (HomeTeam, What to Watch, Dorothy, Print Status, Notifly). The name is a label; it stores Apple ID + app-specific password credentials that work for any app under the same team.
+- Notarytool keychain profile is named `jonzan0ff-notary` — shared across all five Mac apps (HomeTeam, What to Watch, Dorothy, Print Status, Notifly). The name is a label; it stores Apple ID + app-specific password credentials that work for any app under the same team.
 - Provisioning profiles are in `~/Library/Developer/Xcode/UserData/Provisioning Profiles/` keyed by UUID. Notifly doesn't use them today but don't delete that directory — the other Mac apps rely on it.
 
 ## History
