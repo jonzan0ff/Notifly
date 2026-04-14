@@ -1,0 +1,301 @@
+# QA Plan: Notifly
+
+> Implements the strategy defined in the QA Master Standards (`~/.claude/rules/qa-standards.md`). This file contains Notifly-specific test layers, fixtures, and engineering rules.
+
+> Goal: eliminate UAT guesswork. Every behavior that can be asserted in code should be. Manual UAT only covers what automation structurally cannot reach (visual pixel polish, the actual menu bar interaction, real Claude Code hook integration).
+
+---
+
+## Execution environment
+
+All tests, builds, and screenshots run on the **QA Mac** (`qa@iMac.local`) via SSH. See `~/.claude/rules/qa-mac.md` for the sync/build pattern. **Never run tests on the dev machine** — it interrupts the user's work, and Notifly draws floating notification windows on the active screen.
+
+The dev machine is for compile-checking only (`xcodebuild build`). Execution, smoke tests, and screenshot capture happen exclusively on the QA Mac.
+
+---
+
+## What's different about Notifly's test surface
+
+Notifly is **simpler** than HomeTeam, Print Status, or What to Watch:
+
+- No widget extension → no App Group, no WidgetKit OS integration, no provisioning gymnastics.
+- No external API → no network smoke tests, no rate limits, no schema drift.
+- No settings UI → no onboarding flows, no preferences persistence.
+
+Notifly is **harder** in two specific ways:
+
+1. **Floating window UI** — the notification stack is an `NSWindow` at `.statusBar` level, not a regular app window. XCUITest can't easily reach it. Test via screenshot capture + visual diff.
+2. **Local IPC** — Unix domain socket between the `notifly` CLI, the VS Code extension, and the app process. Test via real socket round-trips, not mocks.
+
+---
+
+## Test pyramid
+
+```
+         ┌──────────────────────────────┐
+         │   UAT (human, ~3 min)        │  ← menu bar feel, real Claude hook integration
+         ├──────────────────────────────┤
+         │   Live IPC + screenshot test │  ← real CLI → real socket → real card render
+         │   (QA Mac, integration)      │     scripts/qa_smoke.sh
+         ├──────────────────────────────┤
+         │   Card snapshot tests        │  ← NotificationCardView via NSHostingView
+         │   (QA Mac)                   │     pixel-comparison against baselines
+         ├──────────────────────────────┤
+         │   Unit tests (no IO)         │  ← models, manager, IPC parsing,
+         │   (QA Mac)                   │     version compare, icon hashing
+         └──────────────────────────────┘
+```
+
+---
+
+## Layer 1 — Unit tests (no IO, no UI, instant)
+
+Run on QA Mac via `xcodebuild test -only-testing NotiflyTests`.
+
+### 1A. NotiflyEvent model
+
+| Test | Asserts |
+|---|---|
+| `init_short_message_unchanged` | Message under 240 chars passes through verbatim |
+| `init_long_message_truncated_with_ellipsis` | 500-char message → 240 chars ending in `…` |
+| `init_whitespace_trimmed` | Leading/trailing whitespace stripped |
+| `init_assigns_unique_id` | Two events with identical content have distinct IDs |
+| `init_receivedAt_is_now` | `receivedAt` within 1s of `Date()` |
+| `equatable_compares_all_fields` | Two events with same id+project+type+message+date are equal |
+
+### 1B. NotificationStackManager
+
+Tests for the in-memory event store. Manager runs on the main actor; tests use `XCTestExpectation` to wait for `DispatchQueue.main.async` blocks.
+
+| Test | Asserts |
+|---|---|
+| `submit_adds_event_to_stack` | After submit, `events.count == 1` |
+| `submit_inserts_newest_first` | Three submits → newest at index 0 |
+| `submit_replaces_existing_for_same_project` | Two submits for "Dorothy" → only one remains, the second |
+| `submit_keeps_other_projects` | Submit Dorothy then Camp → both remain |
+| `clearProject_removes_only_matching` | After `clearProject("Dorothy")` only non-Dorothy remain |
+| `clearProject_unknown_is_noop` | Clearing a project with no events leaves stack unchanged |
+| `clearAll_empties_stack` | After `clearAll()` count is zero |
+| `dismiss_removes_specific_event_by_id` | `dismiss(event)` removes only that event |
+
+### 1C. ProjectIconView initials and color hashing
+
+Tests for the deterministic project → initials and project → color logic in `NotificationCardView.swift`.
+
+| Input project | Expected initials |
+|---|---|
+| `"Dorothy"` | `"DO"` |
+| `"Camp Clintondale"` | `"CC"` |
+| `"SPAMASAURUS"` | `"SP"` |
+| `"What to Watch"` | `"WW"` |
+| `"a"` | `"A"` |
+| `"  "` | `""` |
+| `"123"` | `"12"` |
+
+| Test | Asserts |
+|---|---|
+| `colorHash_isDeterministic` | Same name → same gradient pair across calls |
+| `colorHash_differentNamesProduceDifferentColors` | "Dorothy" and "SPAMASAURUS" hash to different palette indices (statistically; assert not equal for the known fixtures) |
+
+### 1D. IPC message decoding
+
+Tests for `IPCMessage` JSON decoding and `IPCServer.handle` dispatch.
+
+| Test | Asserts |
+|---|---|
+| `decode_send_with_all_fields` | Round-trip JSON → `IPCMessage` with project/event/message |
+| `decode_active_with_project` | `{"type":"active","project":"Dorothy"}` decodes |
+| `decode_clear` | `{"type":"clear"}` decodes with nil project |
+| `decode_unknown_type_still_decodes` | Unknown type string decodes (validation happens later in `handle`) |
+| `decode_missing_type_throws` | Missing `type` key throws |
+| `handle_send_with_missing_project_throws` | Throws `IPCError.badRequest` |
+| `handle_send_with_invalid_event_throws` | `event: "exploded"` throws |
+| `handle_active_with_empty_project_throws` | Empty string project throws |
+
+### 1E. UpdateService version comparison
+
+| local | remote | isNewer |
+|---|---|---|
+| `0.1.0` | `0.1.1` | true |
+| `0.1.0` | `0.2.0` | true |
+| `0.1.0` | `1.0.0` | true |
+| `0.1.0` | `0.1.0` | false |
+| `0.2.0` | `0.1.9` | false |
+| `0.10.0` | `0.9.0` | false |
+| `0.1.0` | `0.1.0.1` | true (4-segment > 3-segment) |
+| `1.0` | `1.0.0` | false |
+
+---
+
+## Layer 2 — Snapshot tests (no IO, visual regression)
+
+Render `NotificationCardView` via `NSHostingView` → `bitmapImageRepForCachingDisplay` → PNG, compare to committed baseline.
+
+Reference PNGs live in `qa/baselines/cards/`. Toggle `recordMode` in `CardSnapshotTests.swift` to re-record after intentional visual changes.
+
+**Baselines must be recorded on the QA Mac.** Font hinting and SwiftUI rendering can differ between machines. If baselines were ever recorded on the dev machine, re-record them on the QA Mac.
+
+### 2A. Card scenarios (per event type, plus edge cases)
+
+| Fixture | Event | Project | Notes |
+|---|---|---|---|
+| `card_done_short` | done | "Dorothy" | One-line message, green pill |
+| `card_done_long` | done | "Camp Clintondale" | 240-char message, 3-line truncation |
+| `card_attention_short` | attention | "SPAMASAURUS" | Orange pill + outer glow |
+| `card_attention_with_question` | attention | "What to Watch" | Question with backtick `code` |
+| `card_stopped_short` | stopped | "HomeTeam" | Red pill |
+| `card_long_project_name` | done | "A Very Long Project Name That Should Truncate" | Title ellipsis |
+| `card_two_letter_project` | done | "X" | Single-letter initial |
+| `card_unicode_project` | done | "café" | Unicode initials |
+
+---
+
+## Layer 3 — Live IPC + screenshot test (integration, on QA Mac)
+
+The single most important test for Notifly. Exercises the entire stack: real CLI → real Unix socket → real app process → real `NSWindow` → real screenshot.
+
+Lives in `macos/scripts/qa_smoke.sh`. Run before every build via the agent.
+
+```bash
+# 1. Kill any running Notifly + clear socket
+pkill -x Notifly; rm -f ~/Library/Application\ Support/Notifly/notifly.sock
+
+# 2. Launch the DerivedData build
+"$APP/Contents/MacOS/Notifly" > /tmp/notifly_smoke.log 2>&1 &
+
+# 3. Send one of each event type
+"$APP/Contents/Resources/notifly" send --project "Dorothy" --event attention --message "..."
+"$APP/Contents/Resources/notifly" send --project "Camp Clintondale" --event done --message "..."
+"$APP/Contents/Resources/notifly" send --project "SPAMASAURUS" --event stopped --message "..."
+
+# 4. Activate Finder (otherwise menu bar icons render dimmed)
+osascript -e 'tell application "Finder" to activate'
+
+# 5. Capture screenshot of the card region
+WIDTH=$(... screen width ...)
+screencapture -x -R $((WIDTH - 460)),28,460,500 qa/screenshots/v<VER>_notification-stack.png
+
+# 6. Capture menu bar region
+screencapture -x -R $((WIDTH - 1200)),0,1200,50 qa/screenshots/v<VER>_menu-bar.png
+
+# 7. Send notifly active to clear one project
+"$APP/Contents/Resources/notifly" active --project "Dorothy"
+sleep 0.5
+screencapture -x -R $((WIDTH - 460)),28,460,500 qa/screenshots/v<VER>_after-active.png
+
+# 8. Send notifly clear
+"$APP/Contents/Resources/notifly" clear
+
+# 9. Verify process still alive (regression for SIGPIPE incident)
+ps -p $PID > /dev/null || fail "process died after IPC traffic"
+
+# 10. Cleanup
+pkill -x Notifly; rm -f ~/Library/Application\ Support/Notifly/notifly.sock
+```
+
+### Test cases covered by this script
+
+| Case | Asserts |
+|---|---|
+| Single attention card renders | top-right card visible after send |
+| Stack of 3 cards renders | three cards stacked, newest on top |
+| `notifly active --project X` clears X | only X removed, others remain |
+| `notifly clear` empties stack | no cards visible after clear |
+| Process survives N IPC round-trips | regression for SIGPIPE — process alive after all sends |
+| Menu bar icon visible | bell icon present in right-side menu bar capture |
+| Update dot when applicable | when `availableUpdate` is set, orange dot present |
+
+### Screenshot description discipline
+
+Per `~/.claude/rules/agent-behavior.md`, after every screenshot capture, the agent must describe in specific detail what is visible: card count, project names, pill colors, icon colors, text content, hover states. Generic claims like "looks correct" are a failed QA check.
+
+---
+
+## Layer 4 — VS Code extension test (optional, manual)
+
+The extension is small (~30 lines) and stateless: on text change, debounced, send `{"type":"active","project":<workspaceName>}` to the socket. Validate manually as part of UAT.
+
+Future automation: a `tsc`-compiled standalone test that imports the extension's send function and fires synthetic text-change events. Not blocking for v0.1.0.
+
+---
+
+## Engineering rules (QA-driven)
+
+1. **All tests run on QA Mac** — never run XCTest, screenshot capture, or end-to-end flows on the dev machine. Sync via rsync, build and test via SSH.
+2. **SIGPIPE must be ignored at startup** — `signal(SIGPIPE, SIG_IGN)` in `IPCServer.start()` and at the top of the `notifly` CLI's `send()`. A process that writes to a closed-peer socket dies otherwise. (Logged as an incident on 2026-04-13.)
+3. **Distinct Xcode target names** — never give two targets in the same project names that differ only in case. APFS is case-insensitive; intermediates collide. Use `PRODUCT_NAME` to control the on-disk binary name. (Logged as an incident on 2026-04-13.)
+4. **All NSWindow / SwiftUI mutations on main thread** — IPC handlers run on a background dispatch queue, but `NotificationStackManager.submit/clearProject/clearAll/dismiss` always dispatch their state changes onto `DispatchQueue.main`.
+5. **Deterministic icon coloring** — `ProjectIconView.gradientColors` must produce the same color pair for the same project name across runs. This is observable in screenshots and any change is a visual regression.
+6. **Message truncation at 240 chars** — long messages are truncated in the model, not the view, so the test surface is the same as the runtime surface.
+7. **One stack entry per project** — submitting a new event for an existing project must replace the old one, not stack on top of it. The product is "calm."
+8. **Pre-build smoke test is mandatory** — run `scripts/qa_smoke.sh` before every release. Catches regressions in the IPC server (SIGPIPE, JSON parsing, threading) and in the SwiftUI render path simultaneously.
+9. **Baselines belong to QA Mac** — committed baseline PNGs in `qa/baselines/` must be generated on the QA Mac, not the dev machine.
+10. **Non-sandboxed app, on purpose** — Notifly is `com.apple.security.app-sandbox: false` (empty entitlements). It needs to write to a Unix socket outside its container and launch other processes (the CLI). Do not enable sandboxing without rethinking the IPC story.
+
+---
+
+## What NOT to automate (leave for UAT)
+
+| Item | Why |
+|---|---|
+| Menu bar icon click feel | Subjective; AppKit `NSStatusItem` interaction not easily scriptable |
+| Real Claude Code hook integration | Requires a real Claude Code session firing real events; out of scope for unit/integration |
+| VS Code extension auto-clear under real typing | Requires a real VS Code window with the extension installed and a human typing |
+| Notification dim mode (under another window) | macOS `NSWindow` at `.statusBar` level doesn't dim like widgets; verify visually |
+| Multi-display behavior | The window pins to `NSScreen.main`; verify on a multi-monitor setup as part of UAT |
+
+---
+
+## UAT checklist — minimum per handoff
+
+### App
+- [ ] Launch fresh → menu bar shows monochrome bell icon
+- [ ] Click bell → menu shows "Notifly v0.1.0", "Check for Updates…", "Quit Notifly"
+- [ ] No window appears (background-only app)
+- [ ] No dock icon (LSUIElement)
+
+### CLI
+- [ ] `notifly send --project "X" --event done --message "test"` returns 0 immediately
+- [ ] If the app isn't running, the CLI launches it silently and the message still arrives
+- [ ] `notifly send` for three different projects produces a stack of 3 cards
+- [ ] `notifly send` for the same project replaces (not stacks) the existing card
+- [ ] `notifly active --project "X"` removes X's card, leaves others
+- [ ] `notifly clear` empties the stack
+- [ ] Bad arguments print usage and exit non-zero
+
+### Cards
+- [ ] Each event type has the correct accent color (green/orange/red)
+- [ ] Attention card has a subtle outer glow
+- [ ] Long messages are truncated to 3 lines with ellipsis
+- [ ] Hovering a card reveals the action buttons (focus, copy, dismiss)
+- [ ] Clicking a card brings the matching VS Code window forward
+- [ ] Cards survive 60+ seconds of inactivity
+
+### Auto-update
+- [ ] On launch, `AppState.shared.checkForUpdate()` is invoked
+- [ ] When `availableUpdate != nil`, the menu bar icon shows an orange dot
+- [ ] When `availableUpdate != nil`, the menu shows "Install Update" instead of "Check for Updates…"
+- [ ] Clicking "Install Update" downloads, replaces `/Applications/Notifly.app`, and relaunches *(verify after first real release)*
+
+### VS Code extension
+- [ ] Install the `.vsix` (or symlink for dev) into VS Code
+- [ ] Open a workspace, fire a notifly send for that workspace's folder name → card appears
+- [ ] Type in any file in that workspace → card auto-clears within 500ms
+- [ ] Type in a different workspace → that workspace's card unaffected
+
+---
+
+## CI pipeline
+
+```
+Every build (agent runs on QA Mac via SSH):
+  1. rsync project to QA Mac
+  2. xcodebuild -scheme Notifly build                        ← compile + asset catalog
+  3. xcodebuild test -only-testing NotiflyTests              ← unit tests
+  4. xcodebuild test -only-testing NotiflyTests/CardSnapshotTests  ← snapshot tests
+  5. macos/scripts/qa_smoke.sh                                ← live IPC + screenshot
+  6. Commit any updated qa/screenshots/v*.png
+
+Pre-release:
+  7. UAT checklist (human, ~3 min on the dev machine via DerivedData handoff)
+```

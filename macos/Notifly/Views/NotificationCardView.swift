@@ -228,11 +228,7 @@ struct ProjectIconView: View {
   }
 
   private var initials: String {
-    let words = name.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-    if words.count >= 2 {
-      return String(words.prefix(2).compactMap { $0.first }).uppercased()
-    }
-    return String(name.prefix(2)).uppercased()
+    ProjectIcon.initials(for: name)
   }
 
   /// Deterministic color from project name — same project always gets the same color.
@@ -246,9 +242,7 @@ struct ProjectIconView: View {
       (Color(red: 0.40, green: 0.82, blue: 1.00), Color(red: 0.13, green: 0.51, blue: 0.78)),
       (Color(red: 1.00, green: 0.50, blue: 0.50), Color(red: 0.78, green: 0.18, blue: 0.18))
     ]
-    var hash: UInt64 = 5381
-    for byte in name.utf8 { hash = ((hash << 5) &+ hash) &+ UInt64(byte) }
-    let pair = palette[Int(hash % UInt64(palette.count))]
+    let pair = palette[ProjectIcon.paletteIndex(for: name, paletteCount: palette.count)]
     return [pair.0, pair.1]
   }
 }
