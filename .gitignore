@@ -15,3 +15,4 @@ vscode-extension/*.vsix
 /tmp/
 *.log
 vscode-extension/.vscode-test/
+.claude/diagnosis.md
