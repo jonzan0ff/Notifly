@@ -30,7 +30,7 @@ targets:
         PRODUCT_NAME: Notifly
         PRODUCT_BUNDLE_IDENTIFIER: com.Notiflyz.app
         SWIFT_MODULE_NAME: Notifly
-        MARKETING_VERSION: "0.1.0"
+        MARKETING_VERSION: "0.1.3"
         CURRENT_PROJECT_VERSION: "1"
         INFOPLIST_FILE: Notifly/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -51,7 +51,7 @@ targets:
         SWIFT_MODULE_NAME: NotiflyCLI
         SKIP_INSTALL: YES
         INSTALL_PATH: "$(CONTENTS_FOLDER_PATH)/Resources"
-        MARKETING_VERSION: "0.1.0"
+        MARKETING_VERSION: "0.1.3"
         CURRENT_PROJECT_VERSION: "1"
 
   NotiflyTests:

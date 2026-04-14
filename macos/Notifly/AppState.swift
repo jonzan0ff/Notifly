@@ -15,7 +15,14 @@ final class AppState: ObservableObject {
   // MARK: - Update checks
 
   func checkForUpdate() async {
+    let current = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+    NSLog("[AppState] checkForUpdate running — current=\(current)")
     let release = await UpdateService.shared.checkForUpdate()
+    if let release {
+      NSLog("[AppState] update AVAILABLE: \(release.tagName) (vs current \(current))")
+    } else {
+      NSLog("[AppState] no update (current=\(current))")
+    }
     self.availableUpdate = release
   }
 
