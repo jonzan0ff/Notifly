@@ -53,19 +53,21 @@ final class MenuBarPopoverSnapshotTests: XCTestCase {
 
   private func render(scenario: String) throws {
     let view = MenuBarPopoverView()
-    let hosting = NSHostingView(rootView: view)
+      .frame(width: width)
+      .background(Color(white: 0.18))
+      .environment(\.colorScheme, .dark)
 
-    // Let SwiftUI pick its intrinsic height at the fixed 300pt width.
-    let fitting = hosting.fittingSize
-    let height = max(fitting.height, 1)
-    hosting.frame = NSRect(x: 0, y: 0, width: width, height: height)
-    hosting.layoutSubtreeIfNeeded()
+    // SwiftUI ImageRenderer (macOS 13+) — NSHostingView.cacheDisplay drops
+    // SwiftUI Text (CoreText/Metal, not legacy AppKit CGContext).
+    let renderer = ImageRenderer(content: view)
+    renderer.proposedSize = ProposedViewSize(width: width, height: nil)
+    renderer.scale = 2.0
 
-    guard let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) else {
-      XCTFail("Could not create bitmap rep for \(scenario)")
+    guard let cgImage = renderer.cgImage else {
+      XCTFail("ImageRenderer produced no CGImage for \(scenario)")
       return
     }
-    hosting.cacheDisplay(in: hosting.bounds, to: rep)
+    let rep = NSBitmapImageRep(cgImage: cgImage)
 
     guard let png = rep.representation(using: .png, properties: [:]) else {
       XCTFail("Could not encode PNG for \(scenario)")
