@@ -1,11 +1,14 @@
 import AppKit
 import Combine
+import SwiftUI
 
 @MainActor
 final class MenuBarController: NSObject {
   static let shared = MenuBarController()
 
   private var statusItem: NSStatusItem?
+  private var popover: NSPopover?
+  private var escapeMonitor: Any?
   private var cancellables = Set<AnyCancellable>()
 
   private override init() { super.init() }
@@ -14,6 +17,7 @@ final class MenuBarController: NSObject {
     guard statusItem == nil else { return }
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     self.statusItem = item
+    configurePopover()
     rebuildButton()
 
     AppState.shared.$availableUpdate
@@ -35,63 +39,49 @@ final class MenuBarController: NSObject {
       .store(in: &cancellables)
   }
 
-  // MARK: - Menu (rebuilt each click so the version + update label are fresh)
+  // MARK: - Popover
 
-  func attachMenu() {
-    statusItem?.menu = buildMenu()
+  private func configurePopover() {
+    let popover = NSPopover()
+    popover.contentSize = NSSize(width: 300, height: 140)
+    popover.behavior = .transient
+    popover.delegate = self
+    popover.contentViewController = NSHostingController(rootView: MenuBarPopoverView())
+    self.popover = popover
   }
 
-  private func buildMenu() -> NSMenu {
-    let menu = NSMenu()
-    menu.delegate = self
+  @objc private func statusItemClicked() {
+    togglePopover()
+  }
 
-    let about = NSMenuItem(title: "About Notifly", action: #selector(showAbout), keyEquivalent: "")
-    about.target = self
-    menu.addItem(about)
-
-    if AppState.shared.availableUpdate != nil && !AppState.shared.isInstallingUpdate {
-      let install = NSMenuItem(title: "Install Update…", action: #selector(installUpdate), keyEquivalent: "")
-      install.target = self
-      menu.addItem(install)
-    } else if AppState.shared.isInstallingUpdate {
-      let installing = NSMenuItem(title: "Installing update…", action: nil, keyEquivalent: "")
-      installing.isEnabled = false
-      menu.addItem(installing)
+  private func togglePopover() {
+    guard let popover, let button = statusItem?.button else { return }
+    if popover.isShown {
+      popover.performClose(nil)
     } else {
-      let check = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
-      check.target = self
-      menu.addItem(check)
+      popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+      NSApp.activate(ignoringOtherApps: true)
     }
-
-    menu.addItem(NSMenuItem.separator())
-
-    let quit = NSMenuItem(title: "Quit Notifly", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-    menu.addItem(quit)
-
-    return menu
   }
 
-  // MARK: - Test hooks
+  // MARK: - Escape dismissal
 
-  /// Titles of the current menu items, rebuilt from the current AppState. Used
-  /// by `NotiflyMenuBarControllerTests` to verify the "Install Update" branch
-  /// appears when an available update is set — the install-flow test closure
-  /// that complements the visual orange-dot screenshot.
-  var menuItemTitlesForTesting: [String] {
-    buildMenu().items.map { $0.title }
+  private func installEscapeMonitor() {
+    guard escapeMonitor == nil else { return }
+    escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+      if event.keyCode == 53 { // Escape
+        self?.popover?.performClose(nil)
+        return nil
+      }
+      return event
+    }
   }
 
-  @objc private func showAbout() {
-    NSApp.activate(ignoringOtherApps: true)
-    NSApp.orderFrontStandardAboutPanel(nil)
-  }
-
-  @objc private func checkForUpdates() {
-    Task { await AppState.shared.checkForUpdate() }
-  }
-
-  @objc private func installUpdate() {
-    Task { await AppState.shared.installUpdate() }
+  private func removeEscapeMonitor() {
+    if let monitor = escapeMonitor {
+      NSEvent.removeMonitor(monitor)
+      escapeMonitor = nil
+    }
   }
 
   // MARK: - Indicators (orange dot when update available, ring while installing)
@@ -132,13 +122,20 @@ final class MenuBarController: NSObject {
       statusItem?.length = NSStatusItem.variableLength
     }
 
-    statusItem?.menu = buildMenu()
+    button.target = self
+    button.action = #selector(statusItemClicked)
   }
 }
 
-extension MenuBarController: NSMenuDelegate {
-  func menuWillOpen(_ menu: NSMenu) {
-    statusItem?.menu = buildMenu()
+// MARK: - NSPopoverDelegate
+
+extension MenuBarController: NSPopoverDelegate {
+  nonisolated func popoverDidShow(_ notification: Notification) {
+    Task { @MainActor in self.installEscapeMonitor() }
+  }
+
+  nonisolated func popoverDidClose(_ notification: Notification) {
+    Task { @MainActor in self.removeEscapeMonitor() }
   }
 }
 
@@ -170,5 +167,95 @@ final class ProgressRingView: NSView {
     arcPath.lineCapStyle = .round
     NSColor.systemOrange.setStroke()
     arcPath.stroke()
+  }
+}
+
+// MARK: - Popover Content (rev 2 spec)
+
+struct MenuBarPopoverView: View {
+  @ObservedObject private var appState = AppState.shared
+
+  private var version: String {
+    (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "?"
+  }
+
+  var body: some View {
+    VStack(spacing: 0) {
+      // Header
+      HStack {
+        Text("Notifly")
+          .font(.system(size: 14, weight: .semibold))
+        Spacer()
+        Text("v\(version)")
+          .font(.system(size: 11))
+          .monospacedDigit()
+          .foregroundStyle(.secondary)
+      }
+      .padding(.horizontal, 14)
+      .padding(.vertical, 12)
+
+      Divider()
+
+      // Body
+      VStack(spacing: 0) {
+        if appState.isInstallingUpdate {
+          HStack(spacing: 10) {
+            ProgressView(value: appState.updateProgress)
+              .progressViewStyle(.linear)
+              .frame(maxWidth: .infinity)
+            Text("Installing update\u{2026}")
+              .font(.system(size: 13))
+              .foregroundStyle(.secondary)
+          }
+          .padding(.horizontal, 14)
+          .padding(.vertical, 10)
+        } else {
+          ActionRow(
+            icon: "arrow.down.circle",
+            label: appState.availableUpdate != nil ? "Install Update" : "Check for Updates"
+          ) {
+            if appState.availableUpdate != nil {
+              Task { await AppState.shared.installUpdate() }
+            } else {
+              Task { await AppState.shared.checkForUpdate() }
+            }
+          }
+        }
+
+        ActionRow(icon: "power", label: "Quit") {
+          NSApplication.shared.terminate(nil)
+        }
+      }
+    }
+    .frame(width: 300)
+  }
+}
+
+private struct ActionRow: View {
+  let icon: String
+  let label: String
+  let action: () -> Void
+
+  @State private var isHovering = false
+
+  var body: some View {
+    Button(action: action) {
+      HStack(spacing: 12) {
+        Image(systemName: icon)
+          .font(.system(size: 18))
+          .foregroundStyle(Color.white.opacity(0.7))
+          .frame(width: 22, alignment: .center)
+        Text(label)
+          .font(.system(size: 13))
+          .foregroundStyle(.primary)
+        Spacer()
+      }
+      .padding(.horizontal, 14)
+      .padding(.vertical, 10)
+      .contentShape(Rectangle())
+      .background(isHovering ? Color.white.opacity(0.06) : Color.clear)
+    }
+    .buttonStyle(.plain)
+    .onHover { isHovering = $0 }
   }
 }
