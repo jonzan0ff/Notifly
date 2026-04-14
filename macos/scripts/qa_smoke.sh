@@ -77,11 +77,31 @@ if ! ps -p $PID > /dev/null; then
 fi
 green "[3/8] launched PID=$PID"
 
-# 4. Send one of each event type
+# 4. Send one of each event type. For Camp Clintondale and Notifly, also pass
+# --icon if a per-project icon exists, so the screenshot exercises the icon
+# loading path in NotificationCardView.
 blue "[4/8] sending three test events via CLI"
+
+NOTIFLY_ICON="$PROJECT_ROOT/.claude/icon.png"
+CAMP_ICON="$HOME/Projects/Camp Clintondale/.claude/icon.png"
+[ ! -f "$CAMP_ICON" ] && CAMP_ICON="/Users/jonzanoff/Documents/jonzan0ff/Projects/Camp Clintondale/.claude/icon.png"
+
+ICON_ARG=""
+[ -f "$NOTIFLY_ICON" ] && ICON_ARG="--icon $NOTIFLY_ICON"
+
 "$CLI" send --project "Dorothy" --event attention --message "Run supabase db push against production now? This will apply 3 pending migrations." || fail "CLI send (attention) failed"
-"$CLI" send --project "Camp Clintondale" --event done --message "Pushed guest check-in rename to main. All 42 Playwright tests passed against localhost and production." || fail "CLI send (done) failed"
-"$CLI" send --project "SPAMASAURUS" --event stopped --message "Gmail OAuth token expired mid-turn. Re-authenticate to continue." || fail "CLI send (stopped) failed"
+
+if [ -f "$CAMP_ICON" ]; then
+  "$CLI" send --project "Camp Clintondale" --event done --message "Pushed guest check-in rename to main. All 42 Playwright tests passed." --icon "$CAMP_ICON" || fail "CLI send (done) failed"
+else
+  "$CLI" send --project "Camp Clintondale" --event done --message "Pushed guest check-in rename to main. All 42 Playwright tests passed." || fail "CLI send (done) failed"
+fi
+
+if [ -f "$NOTIFLY_ICON" ]; then
+  "$CLI" send --project "Notifly" --event stopped --message "Hit a snag in the IPC layer. Re-run after fixing." --icon "$NOTIFLY_ICON" || fail "CLI send (stopped) failed"
+else
+  "$CLI" send --project "Notifly" --event stopped --message "Hit a snag in the IPC layer. Re-run after fixing." || fail "CLI send (stopped) failed"
+fi
 sleep 1
 
 if ! ps -p $PID > /dev/null; then

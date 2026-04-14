@@ -112,7 +112,50 @@ Tests for `IPCMessage` JSON decoding and `IPCServer.handle` dispatch.
 | `handle_send_with_invalid_event_throws` | `event: "exploded"` throws |
 | `handle_active_with_empty_project_throws` | Empty string project throws |
 
-### 1E. UpdateService version comparison
+### 1E. Project grouping (cross-implementation contract)
+
+Three implementations must produce identical results for the same fixture table:
+- **Swift** `ProjectGrouping.projectName(forPath:)` → `NotiflyTests/ProjectGroupingTests`
+- **Bash** `project_root()` in `~/.claude/hooks/notify-desktop.sh` → `macos/scripts/test_project_grouping_bash.sh`
+- **TypeScript** `projectRootForPath()` in `vscode-extension/src/extension.ts` → `vscode-extension/test/projectGrouping.test.js`
+
+If you add a fixture row to one, you MUST add it to all three. The test scripts each ALSO grep the live source files to verify the function exists and hasn't drifted from the inline test copy.
+
+| Input path | Expected project |
+|---|---|
+| `Camp Clintondale/admin` | `Camp Clintondale` |
+| `Camp Clintondale/guest` | `Camp Clintondale` |
+| `Camp Clintondale/admin/app/api/users` | `Camp Clintondale` |
+| `Camp Clintondale/email-templates/booking` | `Camp Clintondale` |
+| `Notifly/macos/Notifly/Views` | `Notifly` |
+| `Dorothy/server/api` | `Dorothy` |
+| `HomeTeam/macos/HomeTeamApp/Services` | `HomeTeam` |
+| `/tmp/scratch/something` | `something` (fallback) |
+
+This proves Camp Clintondale's guest/admin sub-repos always collapse to a single notification stack entry — never two competing ones.
+
+### 1F. Per-project icon loading
+
+`NotiflyEventIconTests` proves that:
+- An `iconPath` provided at event construction round-trips through the model
+- A real PNG file at the path loads as a non-nil `NSImage` with the expected dimensions
+- A missing path returns nil from the loader (no crash)
+- The `iconPath` field round-trips through `IPCMessage` JSON encoding
+- The real per-project icons at `Camp Clintondale/.claude/icon.png` and `Notifly/.claude/icon.png` exist on disk and load (skipped on machines that don't have them)
+
+This proves that when the hook script passes `--icon /path/to/icon.png`, the path makes it all the way to `NSImage(contentsOfFile:)` and produces a real image.
+
+### 1G. Card action wiring
+
+`CardActionTests` proves that:
+- The dismiss callback wired through `NotificationStackView.handleDismiss` actually removes the event from the manager
+- The click callback (which dismisses the card and focuses VS Code) actually clears the card from the manager
+- Dismissing one card leaves all other cards untouched
+- The card view holds at least two closure-typed properties (smoke test against future regressions where someone hard-codes an action)
+
+This proves the action buttons are wired to real state changes — addressing the user's complaint "the action buttons don't do anything". The follow-up integration test (Layer 3) proves the SwiftUI buttons actually receive clicks through the `NSPanel` host.
+
+### 1H. UpdateService version comparison
 
 | local | remote | isNewer |
 |---|---|---|
@@ -208,6 +251,18 @@ pkill -x Notifly; rm -f ~/Library/Application\ Support/Notifly/notifly.sock
 ### Screenshot description discipline
 
 Per `~/.claude/rules/agent-behavior.md`, after every screenshot capture, the agent must describe in specific detail what is visible: card count, project names, pill colors, icon colors, text content, hover states. Generic claims like "looks correct" are a failed QA check.
+
+---
+
+## Layer 3B — Auto-clear-on-typing (live IPC, on QA Mac)
+
+The other "PROVE it works" integration test. Lives in `macos/scripts/test_auto_clear.sh`. Builds, launches the app, sends three test cards, then writes the same JSON the VS Code extension would write (`{"type":"active","project":"Camp Clintondale"}`) directly to the Unix socket via Python, and verifies via screenshot that exactly the targeted card disappears while the other two remain.
+
+This bypasses the requirement of having a real VS Code window open during the test, but exercises the **same code path** — the IPC message format, the IPCServer dispatch, the `NotificationStackManager.clearProject` flow, and the SwiftUI re-render. If a regression breaks any of those, this test fails.
+
+The test ALSO verifies the process survives the active message (regression for the SIGPIPE incident) and that the screenshot shows the expected delta — Camp Clintondale gone, Dorothy + SPAMASAURUS still visible.
+
+The companion XCUITest for the actual SwiftUI button click event-routing through the `NSPanel` host is tracked as a future test layer; for v0.1.0 the unit-level button-callback contract (Layer 1G) plus this active-message round-trip provide enough proof.
 
 ---
 

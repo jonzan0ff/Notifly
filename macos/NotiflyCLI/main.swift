@@ -33,7 +33,7 @@ func die(_ message: String, code: Int32 = 1) -> Never {
 func usage() -> Never {
   die("""
   usage:
-    notifly send   --project <name> --event <done|attention|stopped> --message <text>
+    notifly send   --project <name> --event <done|attention|stopped> --message <text> [--icon <path>]
     notifly active --project <name>
     notifly clear
   """)
@@ -50,6 +50,9 @@ case "send":
         let event = argValue("--event"),
         let message = argValue("--message") else { usage() }
   payload = ["type": "send", "project": project, "event": event, "message": message]
+  if let icon = argValue("--icon"), FileManager.default.fileExists(atPath: icon) {
+    payload["iconPath"] = icon
+  }
 
 case "active":
   guard let project = argValue("--project") else { usage() }

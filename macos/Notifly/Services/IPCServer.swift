@@ -116,7 +116,7 @@ final class IPCServer {
             let message = msg.message else {
         throw IPCError.badRequest("send requires project, event, message")
       }
-      let event = NotiflyEvent(project: project, type: kind, message: message)
+      let event = NotiflyEvent(project: project, type: kind, message: message, iconPath: msg.iconPath)
       NotificationStackManager.shared.submit(event)
 
     case "active":

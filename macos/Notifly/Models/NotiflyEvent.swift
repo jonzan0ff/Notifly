@@ -12,13 +12,18 @@ struct NotiflyEvent: Identifiable, Equatable {
   let type: NotiflyEventType
   let message: String
   let receivedAt: Date
+  /// Absolute path to a per-project icon.png, if the caller provided one.
+  /// The card view loads it via NSImage and falls back to initials if nil
+  /// or unreadable.
+  let iconPath: String?
 
-  init(project: String, type: NotiflyEventType, message: String) {
+  init(project: String, type: NotiflyEventType, message: String, iconPath: String? = nil) {
     self.id = UUID()
     self.project = project
     self.type = type
     self.message = NotiflyEvent.truncate(message)
     self.receivedAt = Date()
+    self.iconPath = iconPath
   }
 
   private static let maxLength = 240
@@ -35,4 +40,5 @@ struct IPCMessage: Codable {
   let project: String?
   let event: String?
   let message: String?
+  let iconPath: String?
 }

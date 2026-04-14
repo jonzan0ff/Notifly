@@ -33,7 +33,7 @@ struct NotificationCardView: View {
 
   private var head: some View {
     HStack(spacing: 12) {
-      ProjectIconView(name: event.project)
+      ProjectIconView(name: event.project, iconPath: event.iconPath)
 
       VStack(alignment: .leading, spacing: 3) {
         HStack(spacing: 8) {
@@ -87,20 +87,47 @@ struct NotificationCardView: View {
   // MARK: - Footer
 
   private var footer: some View {
-    HStack {
+    HStack(spacing: 8) {
       Text(metaText)
         .font(.system(size: 10.5, design: .monospaced))
         .foregroundColor(.white.opacity(0.38))
         .lineLimit(1)
       Spacer()
-      if hovering {
-        HStack(spacing: 6) {
-          actionButton(systemName: "arrow.up.left.and.arrow.down.right", action: onClick)
-          actionButton(systemName: "doc.on.doc", action: copyMessage)
-          actionButton(systemName: "xmark", action: onDismiss)
+      // Primary action — clears the card and brings VS Code forward.
+      // Always visible (not hover-gated) so the affordance is obvious.
+      Button(action: onClick) {
+        HStack(spacing: 4) {
+          Image(systemName: "arrow.up.right.square.fill")
+            .font(.system(size: 11, weight: .semibold))
+          Text("Open")
+            .font(.system(size: 11, weight: .semibold))
         }
-        .transition(.opacity)
+        .foregroundColor(.white.opacity(0.92))
+        .padding(.horizontal, 9)
+        .padding(.vertical, 4)
+        .background(
+          Capsule().fill(accentColor.opacity(0.22))
+        )
+        .overlay(
+          Capsule().stroke(accentColor.opacity(0.45), lineWidth: 0.5)
+        )
       }
+      .buttonStyle(.plain)
+
+      // Secondary action — dismiss without focusing.
+      Button(action: onDismiss) {
+        Image(systemName: "xmark")
+          .font(.system(size: 10, weight: .bold))
+          .foregroundColor(.white.opacity(0.55))
+          .frame(width: 22, height: 22)
+          .background(
+            Circle().fill(.white.opacity(0.08))
+          )
+          .overlay(
+            Circle().stroke(.white.opacity(0.10), lineWidth: 0.5)
+          )
+      }
+      .buttonStyle(.plain)
     }
     .padding(.top, 8)
     .overlay(
@@ -109,23 +136,6 @@ struct NotificationCardView: View {
         .frame(height: 0.5),
       alignment: .top
     )
-    .animation(.easeInOut(duration: 0.15), value: hovering)
-  }
-
-  private func actionButton(systemName: String, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-      Image(systemName: systemName)
-        .font(.system(size: 11, weight: .semibold))
-        .foregroundColor(.white.opacity(0.62))
-        .frame(width: 22, height: 22)
-        .background(
-          RoundedRectangle(cornerRadius: 6).fill(.white.opacity(0.06))
-        )
-        .overlay(
-          RoundedRectangle(cornerRadius: 6).stroke(.white.opacity(0.10), lineWidth: 0.5)
-        )
-    }
-    .buttonStyle(.plain)
   }
 
   // MARK: - Background
@@ -195,36 +205,57 @@ struct NotificationCardView: View {
     }
   }
 
-  private func copyMessage() {
-    NSPasteboard.general.clearContents()
-    NSPasteboard.general.setString(event.message, forType: .string)
-  }
 }
 
 // MARK: - Project icon
 
 struct ProjectIconView: View {
   let name: String
+  let iconPath: String?
+
+  init(name: String, iconPath: String? = nil) {
+    self.name = name
+    self.iconPath = iconPath
+  }
 
   var body: some View {
-    RoundedRectangle(cornerRadius: 11, style: .continuous)
-      .fill(LinearGradient(
-        colors: gradientColors,
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-      ))
-      .frame(width: 40, height: 40)
-      .overlay(
-        Text(initials)
-          .font(.system(size: 17, weight: .bold, design: .default))
-          .foregroundColor(.white)
-          .kerning(-0.4)
-      )
-      .overlay(
+    Group {
+      if let nsImage = loadedImage {
+        Image(nsImage: nsImage)
+          .resizable()
+          .interpolation(.high)
+          .scaledToFill()
+          .frame(width: 40, height: 40)
+          .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+      } else {
         RoundedRectangle(cornerRadius: 11, style: .continuous)
-          .stroke(.white.opacity(0.25), lineWidth: 0.5)
-      )
-      .shadow(color: .black.opacity(0.25), radius: 3, x: 0, y: 1)
+          .fill(LinearGradient(
+            colors: gradientColors,
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+          ))
+          .frame(width: 40, height: 40)
+          .overlay(
+            Text(initials)
+              .font(.system(size: 17, weight: .bold, design: .default))
+              .foregroundColor(.white)
+              .kerning(-0.4)
+          )
+      }
+    }
+    .overlay(
+      RoundedRectangle(cornerRadius: 11, style: .continuous)
+        .stroke(.white.opacity(0.25), lineWidth: 0.5)
+    )
+    .shadow(color: .black.opacity(0.25), radius: 3, x: 0, y: 1)
+  }
+
+  /// Lazily loads the per-project icon if the path exists and points at a valid
+  /// image. Returns nil if the path is nil, missing, or unreadable — in which
+  /// case the initials fallback is rendered.
+  private var loadedImage: NSImage? {
+    guard let path = iconPath, FileManager.default.fileExists(atPath: path) else { return nil }
+    return NSImage(contentsOfFile: path)
   }
 
   private var initials: String {

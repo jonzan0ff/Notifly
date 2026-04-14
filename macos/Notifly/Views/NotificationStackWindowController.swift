@@ -1,8 +1,13 @@
 import AppKit
 import SwiftUI
 
-/// Borderless, click-through-where-empty floating window pinned to the top-right
-/// of the active screen, just below the menu bar. Hosts the notification stack.
+/// Borderless, non-activating floating panel pinned to the top-right of the
+/// active screen, just below the menu bar. Hosts the SwiftUI notification stack.
+///
+/// Uses NSPanel with `.nonactivatingPanel` so SwiftUI buttons inside the cards
+/// receive clicks WITHOUT the panel stealing focus from whatever app is in front.
+/// (A regular NSWindow with `canBecomeKey=false` swallows mouse-up events on
+/// SwiftUI buttons, which is why the action buttons appeared dead.)
 final class NotificationStackWindowController: NSWindowController {
 
   private let manager: NotificationStackManager
@@ -10,26 +15,32 @@ final class NotificationStackWindowController: NSWindowController {
   init(manager: NotificationStackManager) {
     self.manager = manager
 
-    let window = StackWindow(
+    let panel = StackPanel(
       contentRect: NSRect(x: 0, y: 0, width: 420, height: 800),
-      styleMask: [.borderless],
+      styleMask: [.borderless, .nonactivatingPanel],
       backing: .buffered,
       defer: false
     )
-    window.isOpaque = false
-    window.backgroundColor = .clear
-    window.hasShadow = false
-    window.level = .statusBar
-    window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
-    window.ignoresMouseEvents = false
-    window.isMovable = false
+    panel.isOpaque = false
+    panel.backgroundColor = .clear
+    panel.hasShadow = false
+    panel.level = .statusBar
+    panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
+    panel.ignoresMouseEvents = false
+    panel.isMovable = false
+    panel.hidesOnDeactivate = false
+    panel.isFloatingPanel = true
+    // Only become key when a control actually needs keyboard input (none of ours
+    // do). This routes mouse clicks to SwiftUI buttons without stealing keystrokes
+    // from VS Code (or whatever app is currently in front).
+    panel.becomesKeyOnlyIfNeeded = true
 
     let host = NSHostingView(rootView: NotificationStackView(manager: manager))
-    host.frame = window.contentView?.bounds ?? .zero
+    host.frame = panel.contentView?.bounds ?? .zero
     host.autoresizingMask = [.width, .height]
-    window.contentView?.addSubview(host)
+    panel.contentView?.addSubview(host)
 
-    super.init(window: window)
+    super.init(window: panel)
     repositionToTopRight()
     NotificationCenter.default.addObserver(
       self, selector: #selector(repositionToTopRight),
@@ -48,9 +59,10 @@ final class NotificationStackWindowController: NSWindowController {
   }
 }
 
-/// Borderless window subclass that allows mouse pass-through over empty regions
-/// so it doesn't steal clicks from whatever is behind it.
-private final class StackWindow: NSWindow {
-  override var canBecomeKey: Bool { false }
+/// NSPanel subclass that allows clicks on its content (SwiftUI buttons) without
+/// becoming key. The `.nonactivatingPanel` style mask plus this override is the
+/// idiomatic AppKit pattern for status-bar-level overlay UIs.
+private final class StackPanel: NSPanel {
+  override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { false }
 }
