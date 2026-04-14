@@ -9,12 +9,16 @@ enum ProjectIcon {
   /// - "Dorothy" → "DO"
   /// - "X" → "X"
   /// - "" → ""
+  /// - "   " → ""
   static func initials(for name: String) -> String {
     let words = name.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
     if words.count >= 2 {
       return String(words.prefix(2).compactMap { $0.first }).uppercased()
     }
-    return String(name.prefix(2)).uppercased()
+    if let first = words.first {
+      return String(first.prefix(2)).uppercased()
+    }
+    return ""
   }
 
   /// Deterministic hash of `name` into `[0, paletteCount)` for color selection.

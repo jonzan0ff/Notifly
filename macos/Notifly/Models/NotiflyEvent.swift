@@ -21,10 +21,12 @@ struct NotiflyEvent: Identifiable, Equatable {
     self.receivedAt = Date()
   }
 
+  private static let maxLength = 240
+
   private static func truncate(_ s: String) -> String {
     let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
-    if trimmed.count <= 240 { return trimmed }
-    return String(trimmed.prefix(237)) + "…"
+    if trimmed.count <= maxLength { return trimmed }
+    return String(trimmed.prefix(maxLength - 1)) + "…"
   }
 }
 
