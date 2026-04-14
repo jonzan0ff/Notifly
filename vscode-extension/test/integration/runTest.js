@@ -15,9 +15,12 @@ async function main() {
   const extensionDevelopmentPath = path.resolve(__dirname, "..", "..");
   const extensionTestsPath = path.resolve(__dirname, "suite", "index.js");
 
-  // Use a temp socket path that's NOT the real one so we don't interfere with
-  // the running Notifly app. The extension reads NOTIFLY_SOCKET_PATH at
-  // activation time.
+  // LIVE_MODE (set via NOTIFLY_LIVE_MODE=1) makes the test suite use the
+  // REAL socket path and skip its mock server setup. Used by the
+  // test_auto_clear_live.sh orchestration which launches a real Notifly
+  // app alongside the test and verifies end-to-end with screenshots.
+  const liveMode = process.env.NOTIFLY_LIVE_MODE === "1";
+
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "notifly-test-"));
   const mockSocketPath = path.join(tmpDir, "notifly.sock");
 
@@ -31,29 +34,30 @@ async function main() {
     "TestProject"
   );
 
-  // Write the mock socket path into a file the test suite can read, since
-  // environment variables don't always propagate through @vscode/test-electron
-  // reliably.
   const configFile = path.join(tmpDir, "test-config.json");
   fs.writeFileSync(
     configFile,
-    JSON.stringify({ mockSocketPath, workspacePath })
+    JSON.stringify({ mockSocketPath, workspacePath, liveMode })
   );
 
-  process.env.NOTIFLY_SOCKET_PATH = mockSocketPath;
-  process.env.NOTIFLY_TEST_CONFIG = configFile;
+  const extensionTestsEnv = {
+    NOTIFLY_TEST_CONFIG: configFile,
+  };
+  if (liveMode) {
+    extensionTestsEnv.NOTIFLY_LIVE_MODE = "1";
+    // In live mode the extension uses the DEFAULT socket path (the real
+    // Notifly app is running and listening there). Do NOT set
+    // NOTIFLY_SOCKET_PATH — we want the extension to behave exactly as it
+    // does in production.
+  } else {
+    extensionTestsEnv.NOTIFLY_SOCKET_PATH = mockSocketPath;
+  }
 
   try {
     const exitCode = await runTests({
       extensionDevelopmentPath,
       extensionTestsPath,
-      // No launchArgs — we open the test file from inside the suite via
-      // vscode.workspace.openTextDocument(). Passing a workspace path here
-      // confuses Electron's raw arg parser on macOS.
-      extensionTestsEnv: {
-        NOTIFLY_SOCKET_PATH: mockSocketPath,
-        NOTIFLY_TEST_CONFIG: configFile,
-      },
+      extensionTestsEnv,
     });
     process.exit(exitCode);
   } catch (err) {

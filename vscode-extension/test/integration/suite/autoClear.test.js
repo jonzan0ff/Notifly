@@ -21,6 +21,7 @@ suite("Notifly auto-clear integration", () => {
   let configFile;
   let mockSocketPath;
   let workspacePath;
+  let liveMode;
 
   suiteSetup(async () => {
     // Read the test config written by runTest.js. It tells us where the mock
@@ -30,6 +31,17 @@ suite("Notifly auto-clear integration", () => {
     const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
     mockSocketPath = config.mockSocketPath;
     workspacePath = config.workspacePath;
+    liveMode = config.liveMode === true;
+
+    // LIVE mode — no mock, the extension writes to the real Notifly socket
+    // and an external orchestration script verifies the card cleared via
+    // screenshot diff. We still wait briefly for the extension to activate.
+    if (liveMode) {
+      receivedMessages = null;
+      server = null;
+      await sleep(500);
+      return;
+    }
 
     // Stand up a mock Unix socket server at the expected path. Every message
     // received gets pushed into `receivedMessages` for the test to inspect.
@@ -95,8 +107,10 @@ suite("Notifly auto-clear integration", () => {
     const doc = await vscode.workspace.openTextDocument(fileUri);
     const editor = await vscode.window.showTextDocument(doc);
 
-    // Reset the message buffer so we only see edits from this test.
-    receivedMessages.length = 0;
+    if (!liveMode) {
+      // Reset the message buffer so we only see edits from this test.
+      receivedMessages.length = 0;
+    }
 
     // Fire a REAL edit via the VS Code API. This is the same code path that
     // a user typing a character goes through — it produces an
@@ -106,6 +120,14 @@ suite("Notifly auto-clear integration", () => {
       builder.insert(new vscode.Position(0, 0), "x");
     });
     assert.ok(edited, "edit must apply");
+
+    if (liveMode) {
+      // In live mode we can't inspect the real Notifly app from inside this
+      // process. Just give the debounce + socket write time to complete.
+      // The external orchestration script will verify via screenshot diff.
+      await sleep(900);
+      return;
+    }
 
     // Wait for the extension's 500ms debounce plus a buffer for the async
     // socket write.
@@ -132,7 +154,11 @@ suite("Notifly auto-clear integration", () => {
     await vscode.commands.executeCommand("undo");
   });
 
-  test("a second edit within debounce is suppressed, a later edit goes through", async () => {
+  test("a second edit within debounce is suppressed, a later edit goes through", async function () {
+    if (liveMode) {
+      this.skip();
+      return;
+    }
     const fileUri = vscode.Uri.file(path.join(workspacePath, "hello.txt"));
     const doc = await vscode.workspace.openTextDocument(fileUri);
     const editor = await vscode.window.showTextDocument(doc);
