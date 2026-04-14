@@ -4,18 +4,20 @@ import Darwin
 // notifly — small CLI that talks to the running Notifly app over a Unix socket.
 //
 // Usage:
-//   notifly send   --project <name> --event <done|attention|stopped> --message <text>
+//   notifly send   --project <name> --event <done|attention|stopped> --message <text> [--icon <path>]
 //   notifly active --project <name>
+//   notifly clear
 //
-// If the Notifly app is not running, the CLI launches it silently and retries.
+// If the Notifly app is not running, the CLI fails silently (exit 0) and the
+// message is dropped. The CLI does NOT own the app's lifecycle — the user
+// controls whether Notifly is running via the menu bar, login items, or
+// manual launch. This prevents the hook → CLI → `open` resurrection loop
+// where every Claude Code Stop event silently relaunches a just-quit app.
 
 let socketPath: String = {
   let dir = ("~/Library/Application Support/Notifly" as NSString).expandingTildeInPath
   return (dir as NSString).appendingPathComponent("notifly.sock")
 }()
-
-let appBundleID = "com.Notiflyz.app"
-let installedAppPath = "/Applications/Notifly.app"
 
 // MARK: - Arg parsing
 
@@ -116,34 +118,13 @@ func send(payload: [String: String]) -> Bool {
   return true
 }
 
-func launchAppIfNeeded() {
-  // Try the installed location first.
-  if FileManager.default.fileExists(atPath: installedAppPath) {
-    let proc = Process()
-    proc.launchPath = "/usr/bin/open"
-    proc.arguments = ["-g", "-b", appBundleID]
-    try? proc.run()
-    return
-  }
-  // Fallback: ask LaunchServices to open it by bundle ID.
-  let proc = Process()
-  proc.launchPath = "/usr/bin/open"
-  proc.arguments = ["-g", "-b", appBundleID]
-  try? proc.run()
-}
-
 // MARK: - Main
+//
+// Try to send once. If the socket is missing or the peer refuses, exit 0
+// silently — the user (or their login items) is responsible for launching
+// Notifly; this CLI never launches it. Exit 0 (not non-zero) so Claude Code
+// hooks don't surface a "notifly failed" error on every call when the app
+// isn't running on purpose.
 
-if send(payload: payload) {
-  exit(0)
-}
-
-// Socket missing or refused — try launching the app and retrying for ~3s.
-launchAppIfNeeded()
-
-for _ in 0..<30 {
-  usleep(100_000)
-  if send(payload: payload) { exit(0) }
-}
-
-die("notifly: could not reach the Notifly app at \(socketPath)")
+_ = send(payload: payload)
+exit(0)
