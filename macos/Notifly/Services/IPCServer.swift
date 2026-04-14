@@ -92,6 +92,10 @@ final class IPCServer {
     let n = read(fd, &buffer, buffer.count)
     guard n > 0 else { return }
     let data = Data(buffer[0..<n])
+    // Diagnostic: log every inbound message so we can tell whether the VS Code
+    // extension is actually pinging the socket on typing.
+    let preview = String(data: data, encoding: .utf8)?.prefix(200) ?? ""
+    NSLog("[IPCServer] rx \(n) bytes: \(preview)")
 
     let response: String
     do {

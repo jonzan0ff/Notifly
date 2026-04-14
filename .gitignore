@@ -14,3 +14,4 @@ vscode-extension/*.vsix
 # Working / temp files
 /tmp/
 *.log
+vscode-extension/.vscode-test/

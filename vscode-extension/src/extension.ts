@@ -4,7 +4,7 @@ import * as os from "os";
 import * as path from "path";
 import * as fs from "fs";
 
-const SOCKET_PATH = path.join(
+const SOCKET_PATH = process.env.NOTIFLY_SOCKET_PATH || path.join(
   os.homedir(),
   "Library",
   "Application Support",
@@ -12,6 +12,7 @@ const SOCKET_PATH = path.join(
   "notifly.sock"
 );
 
+const LOG_PATH = "/tmp/notifly-vscode-extension.log";
 const DEBOUNCE_MS = 500;
 
 /**
@@ -35,48 +36,88 @@ function projectRootForPath(filePath: string): string | undefined {
   return undefined;
 }
 
+/** Append a line to /tmp/notifly-vscode-extension.log with a timestamp. */
+function log(msg: string): void {
+  try {
+    const ts = new Date().toISOString();
+    fs.appendFileSync(LOG_PATH, `[${ts}] ${msg}\n`);
+  } catch {
+    // best-effort; we don't want logging failures to crash the extension
+  }
+}
+
 export function activate(context: vscode.ExtensionContext) {
+  log(`activate — socket=${SOCKET_PATH} debounce=${DEBOUNCE_MS}ms`);
+
+  const output = vscode.window.createOutputChannel("Notifly");
+  output.appendLine(`[Notifly] extension activated at ${new Date().toISOString()}`);
+  output.appendLine(`[Notifly] socket: ${SOCKET_PATH}`);
+
   const lastPingByProject = new Map<string, number>();
 
-  const sendActive = (project: string) => {
+  const sendActive = (project: string, reason: string) => {
     const now = Date.now();
     const last = lastPingByProject.get(project) ?? 0;
-    if (now - last < DEBOUNCE_MS) return;
+    const elapsed = now - last;
+    if (elapsed < DEBOUNCE_MS) {
+      log(`debounced ${project} (${elapsed}ms since last, reason=${reason})`);
+      return;
+    }
     lastPingByProject.set(project, now);
 
-    const payload = JSON.stringify({ type: "active", project }) + "\n";
+    if (!fs.existsSync(SOCKET_PATH)) {
+      log(`socket missing at ${SOCKET_PATH} — skipping ${project}`);
+      output.appendLine(`[Notifly] socket missing — is the Notifly app running?`);
+      return;
+    }
 
-    if (!fs.existsSync(SOCKET_PATH)) return;
+    const payload = JSON.stringify({ type: "active", project }) + "\n";
+    log(`-> ${payload.trim()} (reason=${reason})`);
 
     const client = net.createConnection(SOCKET_PATH, () => {
-      client.write(payload, () => client.end());
+      client.write(payload, () => {
+        client.end();
+        log(`ok wrote ${payload.trim()}`);
+      });
     });
-    client.on("error", () => {
-      // Notifly app not running — silently drop. The CLI will launch it on the
-      // next send.
+    client.on("error", (err) => {
+      log(`socket error writing ${project}: ${err.message}`);
+      output.appendLine(`[Notifly] socket write failed: ${err.message}`);
     });
   };
 
   const projectFor = (uri: vscode.Uri): string | undefined => {
-    // Try the workspace folder first — fast path when the workspace IS the
-    // project root (e.g. opening Notifly directly).
     const folder = vscode.workspace.getWorkspaceFolder(uri);
     if (folder) {
       const folderRoot = projectRootForPath(folder.uri.fsPath + "/_");
-      if (folderRoot) return folderRoot;
+      if (folderRoot) {
+        log(`projectFor(${uri.fsPath}) via workspace → ${folderRoot}`);
+        return folderRoot;
+      }
+      log(`projectFor(${uri.fsPath}) fallback to folder.name → ${folder.name}`);
       return folder.name;
     }
-    // No workspace — fall back to walking up from the file path itself.
-    return projectRootForPath(uri.fsPath);
+    const fallback = projectRootForPath(uri.fsPath);
+    log(`projectFor(${uri.fsPath}) no workspace → ${fallback}`);
+    return fallback;
   };
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.contentChanges.length === 0) return;
+      // Only handle real file documents — skip settings previews, output
+      // panels, webviews, untitled scratch, etc.
+      if (e.document.uri.scheme !== "file") {
+        log(`skip non-file scheme: ${e.document.uri.scheme}`);
+        return;
+      }
+      log(`onDidChangeTextDocument uri=${e.document.uri.fsPath} changes=${e.contentChanges.length}`);
       const project = projectFor(e.document.uri);
-      if (project) sendActive(project);
+      if (project) sendActive(project, "onDidChangeTextDocument");
     })
   );
+
+  log(`event handler registered`);
 }
 
 export function deactivate() {}

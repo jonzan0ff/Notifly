@@ -293,11 +293,25 @@ The companion XCUITest for the actual SwiftUI button click event-routing through
 
 ---
 
-## Layer 4 — VS Code extension test (optional, manual)
+## Layer 4 — VS Code extension end-to-end test (automated)
 
-The extension is small (~30 lines) and stateless: on text change, debounced, send `{"type":"active","project":<workspaceName>}` to the socket. Validate manually as part of UAT.
+Lives at `vscode-extension/test/integration/`. Uses `@vscode/test-electron` to download an isolated VS Code, load the Notifly extension at dev-path, and run a Mocha suite that fires **real in-editor edits** via `TextEditor.edit()`. A mock Unix socket server runs inside the test process at a temp path (via `NOTIFLY_SOCKET_PATH` env var override) so the test doesn't interfere with the running Notifly app.
 
-Future automation: a `tsc`-compiled standalone test that imports the extension's send function and fires synthetic text-change events. Not blocking for v0.1.0.
+**Run:** `cd vscode-extension && npm run test:integration` (needs `node` — install to QA Mac via the direct tarball method, not Homebrew).
+
+### Tests
+
+| Test | Asserts |
+|---|---|
+| `extension is activated after VS Code launch` | `vscode.extensions.getExtension("notiflyz.notifly-vscode").isActive` is true after `onStartupFinished` |
+| `editing a file fires an active ping with the right project name` | `editor.edit()` on a file at `.../Projects/TestProject/hello.txt` produces exactly one `{"type":"active","project":"TestProject"}` message on the mock socket within the debounce window |
+| `a second edit within debounce is suppressed, a later edit goes through` | Rapid follow-up edit produces no additional message; an edit past the 500ms debounce produces one |
+
+This is the **only** test that actually proves the full auto-clear chain end-to-end. The earlier `test_auto_clear.sh` script exercised the IPC **server** side but simulated the extension by writing bytes directly to the socket — it did not prove the extension itself fires on typing. Layer 4 is that proof.
+
+### Rule
+
+**Never claim a user-facing interaction works end-to-end without a test in this layer.** A contract test on a wire format is not an end-to-end test. If you add a new IPC message or a new VS Code event handler, add a test here that runs the real handler inside a real VS Code instance.
 
 ---
 
