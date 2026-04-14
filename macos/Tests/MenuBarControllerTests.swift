@@ -26,8 +26,8 @@ final class MenuBarControllerTests: XCTestCase {
     let titles = MenuBarController.shared.menuItemTitlesForTesting
     XCTAssertTrue(titles.contains("Check for Updates…"),
                   "menu must offer 'Check for Updates…' when availableUpdate is nil, got \(titles)")
-    XCTAssertFalse(titles.contains("Install Update"),
-                   "menu must NOT offer 'Install Update' when availableUpdate is nil")
+    XCTAssertFalse(titles.contains("Install Update…"),
+                   "menu must NOT offer 'Install Update…' when availableUpdate is nil")
   }
 
   func test_menu_shows_install_update_when_release_is_available() {
@@ -38,8 +38,8 @@ final class MenuBarControllerTests: XCTestCase {
       assets: [.init(id: 1, name: "Notifly-0.1.3.zip", browserDownloadURL: "https://example.test/notifly.zip")]
     )
     let titles = MenuBarController.shared.menuItemTitlesForTesting
-    XCTAssertTrue(titles.contains("Install Update"),
-                  "menu must offer 'Install Update' when availableUpdate is set, got \(titles)")
+    XCTAssertTrue(titles.contains("Install Update…"),
+                  "menu must offer 'Install Update…' when availableUpdate is set, got \(titles)")
     XCTAssertFalse(titles.contains("Check for Updates…"),
                    "menu must NOT offer 'Check for Updates…' when an update is already available")
   }
@@ -55,15 +55,15 @@ final class MenuBarControllerTests: XCTestCase {
     let titles = MenuBarController.shared.menuItemTitlesForTesting
     XCTAssertTrue(titles.contains("Installing update…"),
                   "menu must show 'Installing update…' while install is running, got \(titles)")
-    XCTAssertFalse(titles.contains("Install Update"),
-                   "menu must NOT offer a second 'Install Update' while one is already running")
+    XCTAssertFalse(titles.contains("Install Update…"),
+                   "menu must NOT offer a second 'Install Update…' while one is already running")
   }
 
-  func test_menu_always_includes_version_and_quit() {
+  func test_menu_always_includes_about_and_quit() {
     MenuBarController.shared.install()
     let titles = MenuBarController.shared.menuItemTitlesForTesting
-    XCTAssertTrue(titles.contains(where: { $0.hasPrefix("Notifly ") }),
-                  "menu must include a version header starting with 'Notifly ', got \(titles)")
+    XCTAssertTrue(titles.contains("About Notifly"),
+                  "menu must include 'About Notifly' per menubar-ui-standards §5, got \(titles)")
     XCTAssertTrue(titles.contains("Quit Notifly"),
                   "menu must always include 'Quit Notifly'")
   }

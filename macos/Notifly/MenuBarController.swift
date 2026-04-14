@@ -45,15 +45,12 @@ final class MenuBarController: NSObject {
     let menu = NSMenu()
     menu.delegate = self
 
-    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-    let versionItem = NSMenuItem(title: "Notifly \(version)", action: nil, keyEquivalent: "")
-    versionItem.isEnabled = false
-    menu.addItem(versionItem)
-
-    menu.addItem(NSMenuItem.separator())
+    let about = NSMenuItem(title: "About Notifly", action: #selector(showAbout), keyEquivalent: "")
+    about.target = self
+    menu.addItem(about)
 
     if AppState.shared.availableUpdate != nil && !AppState.shared.isInstallingUpdate {
-      let install = NSMenuItem(title: "Install Update", action: #selector(installUpdate), keyEquivalent: "")
+      let install = NSMenuItem(title: "Install Update…", action: #selector(installUpdate), keyEquivalent: "")
       install.target = self
       menu.addItem(install)
     } else if AppState.shared.isInstallingUpdate {
@@ -82,6 +79,11 @@ final class MenuBarController: NSObject {
   /// that complements the visual orange-dot screenshot.
   var menuItemTitlesForTesting: [String] {
     buildMenu().items.map { $0.title }
+  }
+
+  @objc private func showAbout() {
+    NSApp.activate(ignoringOtherApps: true)
+    NSApp.orderFrontStandardAboutPanel(nil)
   }
 
   @objc private func checkForUpdates() {
