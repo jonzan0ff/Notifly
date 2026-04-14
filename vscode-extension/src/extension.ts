@@ -116,17 +116,11 @@ export function activate(context: vscode.ExtensionContext) {
     }
   };
 
-  // Signal 1: file typing (file-document change). Keeps the old behavior
-  // working for users who are editing source files, not chatting.
-  context.subscriptions.push(
-    vscode.workspace.onDidChangeTextDocument((e) => {
-      if (e.contentChanges.length === 0) return;
-      if (e.document.uri.scheme !== "file") return;
-      const project = projectRootForPath(e.document.uri.fsPath)
-        || vscode.workspace.getWorkspaceFolder(e.document.uri)?.name;
-      if (project) sendActive(project, "text-change");
-    })
-  );
+  // ENGAGEMENT CONTRACT — see macos/Tests/EngagementContractTests.swift.
+  // Active pings are sent ONLY when the user is engaged with the Claude Code
+  // webview. File editing is intentionally NOT a signal — editing source files
+  // is normal coding work and must not suppress Notifly cards. Adding new
+  // signal sources here without updating the contract test will fail CI.
 
   // Signal 2: VS Code window gains OS focus with a Claude tab already active.
   context.subscriptions.push(

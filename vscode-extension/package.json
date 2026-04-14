@@ -1,8 +1,8 @@
 {
   "name": "notifly-vscode",
   "displayName": "Notifly",
-  "description": "Auto-clears Notifly notifications when you engage with a project's VS Code window — window focus, Claude Code tab activation, heartbeat, and file typing.",
-  "version": "0.2.0",
+  "description": "Auto-clears Notifly notifications when you engage with a project's Claude Code webview in VS Code (window focus, tab activation, heartbeat).",
+  "version": "0.2.1",
   "publisher": "notiflyz",
   "engines": {
     "vscode": "^1.85.0"

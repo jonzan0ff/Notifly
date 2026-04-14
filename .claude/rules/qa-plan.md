@@ -182,6 +182,38 @@ The bash hook in `~/.claude/hooks/notify-desktop.sh` runs `summarize()` on every
 
 The sentinel marker is the v2 contract — if anyone edits the live hook and removes the marker (or downgrades to a v1 implementation), this test fails immediately.
 
+### 1H+. Engagement contract (`EngagementContractTests.swift`)
+
+The Notifly server treats every inbound `active` ping as both a card-clearer and a suppression trigger: any new card for the same project arriving within `NotificationStackManager.suppressionWindow` (4s) is dropped on the floor. That makes the **set of trigger sources for `active` pings a load-bearing safety property** — if any unrelated event ever fires `active`, the user silently loses Stop-event notifications for whatever project they happened to be touching.
+
+v0.1.5 shipped with this exact bug: the VS Code extension still subscribed to `onDidChangeTextDocument`, so editing any source file fired an `active` ping and silenced cards for that project for the next 4 seconds. The unit tests at the time only exercised the server's suppression window in isolation; nothing pinned down what was *allowed* to talk to that window.
+
+`EngagementContractTests` reads `vscode-extension/src/extension.ts` directly and asserts:
+
+| Test | Asserts |
+|---|---|
+| `test_extension_does_not_subscribe_to_file_edits` | The forbidden substring `onDidChangeTextDocument` does not appear anywhere in `extension.ts` |
+| `test_extension_declares_engagement_contract_comment` | `extension.ts` contains an `ENGAGEMENT CONTRACT` comment block that names this test file, so future contributors see the chain of intent |
+| `test_extension_wires_all_four_engagement_signals` | The four allowed signal sources are all present: `onDidChangeWindowState`, `tabGroups.onDidChangeTabs`, `tabGroups.onDidChangeTabGroups`, `setInterval` |
+
+**Engagement contract** — the canonical list of allowed `active` ping triggers. Any change to this list requires a change to `EngagementContractTests` AND a row in this table:
+
+| Signal | Source | Why it counts as "engaged with Claude" |
+|---|---|---|
+| Window focus | `vscode.window.onDidChangeWindowState` (focused→true) | User just brought VS Code to the foreground; if Claude tab is the active tab, they're switching back to a Claude conversation |
+| Tab activation | `vscode.window.tabGroups.onDidChangeTabs` / `onDidChangeTabGroups` | The active tab just became a Claude Code webview (matched on `viewType` containing `claudeVSCodePanel` or label containing `Claude`) |
+| Heartbeat | `setInterval` (2s) when window focused + Claude tab active | User is sitting in the prompt field; covers "card arrives mid-conversation" |
+
+**Forbidden triggers** (silently break the user — never add):
+
+| Anti-signal | Why forbidden |
+|---|---|
+| `onDidChangeTextDocument` | Editing a source file is not a Claude conversation; suppressing Stop cards while the user is coding is the original v0.1.5 bug |
+| `onDidSaveTextDocument` | Same logic — saving a file is coding, not chatting |
+| Cursor movement / selection events | Background editor activity, not engagement |
+
+If you have a real reason to add a new signal, write it into the contract table AND extend `test_extension_wires_all_four_engagement_signals`. Don't slip a new subscription past the test.
+
 ### 1I. UpdateService version comparison
 
 | local | remote | isNewer |
@@ -280,6 +312,26 @@ pkill -x Notifly; rm -f ~/Library/Application\ Support/Notifly/notifly.sock
 Per `~/.claude/rules/agent-behavior.md`, after every screenshot capture, the agent must describe in specific detail what is visible: card count, project names, pill colors, icon colors, text content, hover states. Generic claims like "looks correct" are a failed QA check.
 
 ---
+
+## Layer 3C — Engagement E2E (real VS Code + real extension + real Notifly)
+
+`macos/scripts/qa_engagement_e2e.sh` is the proof that engagement detection actually works in production. It runs entirely on the QA Mac, launches the real Notifly app, real VS Code, the installed Claude Code extension, and the installed Notifly VS Code extension — then drives a scripted scenario via osascript and asserts PASS/FAIL by parsing the Notifly app's NSLog output for the lines `[NotificationStackManager] suppressing card for <project>`.
+
+It exists because v0.1.5 shipped a notification tool with no notifications: the extension still subscribed to `onDidChangeTextDocument`, so editing any source file in a project fired an `active` ping and silenced Stop-event cards for that project for the next 4 seconds. None of the existing unit tests, snapshot tests, integration tests, or even `qa_smoke.sh` would have caught it because none of them ran the actual installed extension against the actual app while editing actual files. The Layer 1 contract test (`EngagementContractTests`) catches a regression *in source*, but only this layer proves the *installed* artifact behaves correctly. **Both layers are required.**
+
+| Case | Setup | Send | Required result |
+|---|---|---|---|
+| **A. Coding safety** | VS Code window focused, a non-Claude source file is the active tab, real keystrokes typed into the file | `notifly send --project Notifly` | Card MUST be received and NOT suppressed. Editing source files must never silence Stop notifications. |
+| **B. Claude engagement** | Claude Code webview opened as a new tab, becomes the active tab, heartbeat has had ≥4 seconds to fire pings | `notifly send --project Notifly` | Card MUST be suppressed. The whole point of the feature. |
+| **C. Baseline** | VS Code hidden via `set visible of process "Code" to false`, Finder frontmost, suppression window drained (≥6s wait) | `notifly send --project Notifly` | Card MUST be received and NOT suppressed. Confirms suppression state doesn't leak across cases. |
+
+Each case captures a screenshot of the top-right notification region for human inspection and asserts PASS/FAIL programmatically against the app log. The script exits 0 only if all three cases pass. **The release pipeline runs this script before publishing — a failure blocks the release.**
+
+### Engineering rules driven by Layer 3C
+
+11. **`onDidChangeTextDocument` is forbidden in `vscode-extension/src/extension.ts`.** File editing is not engagement. The Swift contract test enforces source-level absence; this E2E test enforces installed-binary correctness. Both must pass.
+12. **The Notifly app must NSLog every suppression decision.** The E2E test depends on `[NotificationStackManager] suppressing card for <project>` lines for its assertions. Removing or changing that log message breaks the test.
+13. **The 4-second suppression window is load-bearing.** The heartbeat fires every 2s; a 4s window guarantees one full ping of slack. Reducing it requires updating Case B's wait time and re-validating against the script.
 
 ## Layer 3B — Auto-clear-on-typing (live IPC, on QA Mac)
 

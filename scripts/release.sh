@@ -32,6 +32,14 @@ if gh release view "v${VERSION}" --repo "${REPO}" >/dev/null 2>&1; then
     exit 1
 fi
 
+echo "==> Running engagement E2E test on QA Mac (Layer 3C)"
+echo "    This is the test that would have caught the v0.1.5 ship-bug."
+if ! "${PROJECT_DIR}/${PROJECT_SUBDIR}/scripts/qa_engagement_e2e.sh" 2>&1 | tail -20; then
+    echo "    ERROR: qa_engagement_e2e.sh FAILED — release blocked." >&2
+    echo "    See Layer 3C in .claude/rules/qa-plan.md." >&2
+    exit 1
+fi
+
 echo "==> Killing any running DerivedData build"
 pkill -f "DerivedData.*${APP_NAME}" 2>/dev/null || true
 

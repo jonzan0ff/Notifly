@@ -20,6 +20,7 @@
 		975C72E29DF88806439D329C /* ProjectGrouping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E8AD14AE96D11109ED13D3E /* ProjectGrouping.swift */; };
 		A49094BF599C463AE4186EBF /* NotificationCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 472072965995D5BB34088F36 /* NotificationCardView.swift */; };
 		A6AC55E293321EA2FB4B87D4 /* NotiflyEventIconTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D19EE951F7CBCE1E4EB1F7C2 /* NotiflyEventIconTests.swift */; };
+		A80C1692A5F40DC8FCC0705D /* EngagementContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66F4B946AD73F6F3A953FF1B /* EngagementContractTests.swift */; };
 		AC58BD438B0141793CAD96F8 /* IPCServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8839EA1A86C652C7C2BAE7E6 /* IPCServer.swift */; };
 		B92AE6FA322282776262F413 /* UpdateServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB1274CD5566E4DEABE3734E /* UpdateServiceTests.swift */; };
 		B9C6AA2C6889F5D84D0E0E59 /* UpdateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FEF6423C3E453E7B284E6E1 /* UpdateService.swift */; };
@@ -72,6 +73,7 @@
 		590B819F1F84DCB58516C9A2 /* NotiflyCLI */ = {isa = PBXFileReference; includeInIndex = 0; path = NotiflyCLI; sourceTree = BUILT_PRODUCTS_DIR; };
 		5B36CA400EADDBF4118E299A /* VSCodeFocuser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VSCodeFocuser.swift; sourceTree = "<group>"; };
 		5C70D97A728722F81208CCAD /* NotificationStackWindowControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationStackWindowControllerTests.swift; sourceTree = "<group>"; };
+		66F4B946AD73F6F3A953FF1B /* EngagementContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngagementContractTests.swift; sourceTree = "<group>"; };
 		7AC9FC957DC32C140AEFED7E /* NotiflyEventTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotiflyEventTests.swift; sourceTree = "<group>"; };
 		8839EA1A86C652C7C2BAE7E6 /* IPCServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPCServer.swift; sourceTree = "<group>"; };
 		9FEF6423C3E453E7B284E6E1 /* UpdateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateService.swift; sourceTree = "<group>"; };
@@ -113,6 +115,7 @@
 			isa = PBXGroup;
 			children = (
 				369A320619A08BEFDEBB0401 /* CardActionTests.swift */,
+				66F4B946AD73F6F3A953FF1B /* EngagementContractTests.swift */,
 				3BB263A8ED0C4C22009E5394 /* Info.plist */,
 				3EEB84C4244692557684CA7F /* IPCMessageTests.swift */,
 				AC3F30AD1843E1D001CC0E92 /* MenuBarPopoverSnapshotTests.swift */,
@@ -308,6 +311,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				71C9944ABA02393A3CB7008F /* CardActionTests.swift in Sources */,
+				A80C1692A5F40DC8FCC0705D /* EngagementContractTests.swift in Sources */,
 				653D10D0EDF4C0D1E0BF7E95 /* IPCMessageTests.swift in Sources */,
 				717376D608B1B23207E9FE83 /* MenuBarPopoverSnapshotTests.swift in Sources */,
 				F60FD750B7232EE899A03E41 /* NotificationStackManagerTests.swift in Sources */,
@@ -386,7 +390,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.5;
+				MARKETING_VERSION = 0.1.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.Notiflyz.app.cli;
 				PRODUCT_NAME = notifly;
 				SDKROOT = macosx;
@@ -551,7 +555,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.5;
+				MARKETING_VERSION = 0.1.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.Notiflyz.app;
 				PRODUCT_NAME = Notifly;
 				SDKROOT = macosx;
@@ -569,7 +573,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.5;
+				MARKETING_VERSION = 0.1.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.Notiflyz.app.cli;
 				PRODUCT_NAME = notifly;
 				SDKROOT = macosx;
@@ -590,7 +594,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.5;
+				MARKETING_VERSION = 0.1.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.Notiflyz.app;
 				PRODUCT_NAME = Notifly;
 				SDKROOT = macosx;
