@@ -155,7 +155,34 @@ This proves that when the hook script passes `--icon /path/to/icon.png`, the pat
 
 This proves the action buttons are wired to real state changes — addressing the user's complaint "the action buttons don't do anything". The follow-up integration test (Layer 3) proves the SwiftUI buttons actually receive clicks through the `NSPanel` host.
 
-### 1H. UpdateService version comparison
+### 1H. Notify-desktop summarize() function
+
+The bash hook in `~/.claude/hooks/notify-desktop.sh` runs `summarize()` on every Claude assistant message before passing it as the `--message` arg to `notifly send`. The v2 implementation is partial-sentence length with word-boundary truncation — v1 cut at the first sentence boundary, which produced useless one-word notifications like "Saved." when the assistant response started with a short opener.
+
+`macos/scripts/test_notify_summarize.sh` covers:
+
+| Test | Asserts |
+|---|---|
+| `short single sentence` | "Saved. Safe to restart." passes through verbatim |
+| `single word` | "Done." passes through verbatim |
+| `empty string` | "" passes through |
+| `long input not cut at first period` | A 200-char input containing "State on disk" still includes that phrase |
+| `long input not cut to one-word 'Saved.'` | Output is at least 100 chars |
+| `long input ends with ellipsis` | Truncated output ends with `…` |
+| `long input ≤ 152 chars` | 150 + ellipsis cap |
+| `truncation lands on word boundary` | Last char before ellipsis is alphanumeric |
+| `bold ** stripped` | `**Done**` → `Done` |
+| `inline code stripped` | `` `git push` `` → `git push` |
+| `markdown link strips URL keeps label` | `[docs](url)` → `docs` |
+| `code block removed` | ` ```bash echo hi``` ` produces no backticks in output |
+| `newlines flatten to spaces` | Multi-line input becomes single-spaced |
+| `tabs flatten to spaces` | Tab-separated text becomes single-spaced |
+| `multiple spaces collapse` | `"a    b"` → `"a b"` |
+| `live hook contains NOTIFLY_SUMMARIZE_V2` | Sentinel grep against `~/.claude/hooks/notify-desktop.sh` proves the test isn't testing a stale copy |
+
+The sentinel marker is the v2 contract — if anyone edits the live hook and removes the marker (or downgrades to a v1 implementation), this test fails immediately.
+
+### 1I. UpdateService version comparison
 
 | local | remote | isNewer |
 |---|---|---|
