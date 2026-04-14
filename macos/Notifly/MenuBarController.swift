@@ -172,7 +172,8 @@ final class ProgressRingView: NSView {
 
 // MARK: - Popover Content (rev 2 spec)
 
-struct MenuBarPopoverView: View {
+// Test visibility
+internal struct MenuBarPopoverView: View {
   @ObservedObject private var appState = AppState.shared
 
   private var version: String {

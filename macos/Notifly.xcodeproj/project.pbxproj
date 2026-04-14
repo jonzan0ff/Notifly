@@ -11,6 +11,7 @@
 		4C663ADBC7602079D41A7DB9 /* NotificationStackManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BDD16EC347B69B009529B33 /* NotificationStackManager.swift */; };
 		653D10D0EDF4C0D1E0BF7E95 /* IPCMessageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EEB84C4244692557684CA7F /* IPCMessageTests.swift */; };
 		6F1FD27D6EDA4B6FF0AAE867 /* NotiflyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46842858D305DFE349024147 /* NotiflyApp.swift */; };
+		717376D608B1B23207E9FE83 /* MenuBarPopoverSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC3F30AD1843E1D001CC0E92 /* MenuBarPopoverSnapshotTests.swift */; };
 		71C9944ABA02393A3CB7008F /* CardActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 369A320619A08BEFDEBB0401 /* CardActionTests.swift */; };
 		79B6312AF0A9DE85BD9A4CBB /* ProjectIconTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFBEEB4C8D7E961AA30B4881 /* ProjectIconTests.swift */; };
 		7CF4C2850D657E5A88A850EB /* NotificationStackWindowControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C70D97A728722F81208CCAD /* NotificationStackWindowControllerTests.swift */; };
@@ -76,6 +77,7 @@
 		9FEF6423C3E453E7B284E6E1 /* UpdateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateService.swift; sourceTree = "<group>"; };
 		A2E3B83DB4C5421C6327D6D6 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		A49EEF6B2B8ED99FBE99A7CA /* NotiflyEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotiflyEvent.swift; sourceTree = "<group>"; };
+		AC3F30AD1843E1D001CC0E92 /* MenuBarPopoverSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPopoverSnapshotTests.swift; sourceTree = "<group>"; };
 		B7E395953700760D0C474AC3 /* ProjectIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectIcon.swift; sourceTree = "<group>"; };
 		CB1274CD5566E4DEABE3734E /* UpdateServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateServiceTests.swift; sourceTree = "<group>"; };
 		D19EE951F7CBCE1E4EB1F7C2 /* NotiflyEventIconTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotiflyEventIconTests.swift; sourceTree = "<group>"; };
@@ -113,6 +115,7 @@
 				369A320619A08BEFDEBB0401 /* CardActionTests.swift */,
 				3BB263A8ED0C4C22009E5394 /* Info.plist */,
 				3EEB84C4244692557684CA7F /* IPCMessageTests.swift */,
+				AC3F30AD1843E1D001CC0E92 /* MenuBarPopoverSnapshotTests.swift */,
 				E575D960C770D332F441DCD9 /* NotificationStackManagerTests.swift */,
 				5C70D97A728722F81208CCAD /* NotificationStackWindowControllerTests.swift */,
 				D19EE951F7CBCE1E4EB1F7C2 /* NotiflyEventIconTests.swift */,
@@ -306,6 +309,7 @@
 			files = (
 				71C9944ABA02393A3CB7008F /* CardActionTests.swift in Sources */,
 				653D10D0EDF4C0D1E0BF7E95 /* IPCMessageTests.swift in Sources */,
+				717376D608B1B23207E9FE83 /* MenuBarPopoverSnapshotTests.swift in Sources */,
 				F60FD750B7232EE899A03E41 /* NotificationStackManagerTests.swift in Sources */,
 				7CF4C2850D657E5A88A850EB /* NotificationStackWindowControllerTests.swift in Sources */,
 				A6AC55E293321EA2FB4B87D4 /* NotiflyEventIconTests.swift in Sources */,
