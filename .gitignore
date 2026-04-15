@@ -16,3 +16,4 @@ vscode-extension/*.vsix
 *.log
 vscode-extension/.vscode-test/
 .claude/diagnosis.md
+.qa_passed
