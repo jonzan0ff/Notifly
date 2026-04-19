@@ -1,0 +1,50 @@
+name: Work Item (code change)
+description: File a Work Item for the Orchestrator to execute.
+title: "[work item] "
+labels: ["queued"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The Orchestrator picks up this Work Item within a few minutes, invokes Claude Code with the scope below, opens a PR when done, and auto-merges when CI passes. No action needed beyond filing this.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What do you want changed?
+      description: Plain English. Goal, not implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: allowed_paths
+    attributes:
+      label: Which files is the agent allowed to touch?
+      description: One glob pattern per line. Empty = read-only task.
+      value: |
+        macos/Sources/**
+        macos/Widget/**
+  - type: dropdown
+    id: timebox_minutes
+    attributes:
+      label: How long before giving up?
+      options: ["30", "60", "120", "240"]
+      default: 1
+    validations:
+      required: true
+  - type: textarea
+    id: exit_conditions
+    attributes:
+      label: How will we know it's done?
+      description: |
+        `sh: <command>` for local shell check; `ci:green` for PR required checks passing.
+      value: |
+        sh: xcodebuild build -project macos/Notifly.xcodeproj -scheme Notifly -destination 'platform=macOS,arch=arm64' -allowProvisioningUpdates
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options: [low, normal, high, urgent]
+      default: 1
+    validations:
+      required: true
