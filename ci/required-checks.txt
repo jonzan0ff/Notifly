@@ -1,0 +1,18 @@
+# Required status checks on `main`, owner-curated.
+#
+# Per ~/.claude/rules/qa-standards.md §9c + §9e: the names listed here are
+# the source of truth for which CI checks branch protection on `main` must
+# enforce. Branch protection is configured by the operator in the
+# github.com web UI (admin-only per qa-standards §9a-2 credential-isolation
+# invariant); this file is the manifest the operator references when
+# setting it.
+#
+# When a new required check is added, list its workflow status-check name
+# below (one per line). The auto-merge workflow (.github/workflows/
+# auto-merge-pr.yml) arms GitHub's native auto-merge on every non-draft PR
+# against `main`; auto-merge squash-merges only after every check listed
+# here goes green.
+#
+# Today this repo has no CI gates wired; this file is a stub. Populate when
+# gates land (Phase 4 of the portfolio-wide build-verification rollout per
+# ~/.claude/rules/build-verification-standards.md §11).
