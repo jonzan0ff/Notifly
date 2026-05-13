@@ -1,6 +1,11 @@
 # QA Plan: Notifly
 
-> Implements the strategy defined in the QA Master Standards (`~/.claude/rules/qa-standards.md`). This file contains Notifly-specific test layers, fixtures, and engineering rules.
+> Implements the portfolio-wide QA discipline defined in `~/.claude/rules/qa-standards.md`. This file is Notifly's test pyramid, fixtures, engineering rules, and UAT checklist.
+>
+> Companion docs (portfolio-wide 3-doc model):
+> - `~/.claude/rules/qa-standards.md` — portfolio-wide QA philosophy + definition of done
+> - `~/.claude/rules/build-verification-standards.md` — portfolio-wide visual build-verification pipeline contract (Notifly isn't on the canonical pipeline yet; this contract describes the shape Notifly will adopt when it migrates per the Phase 4 cross-app rollout)
+> - Notifly is a non-WidgetKit Mac app — no surfaces.md / surfaces.json / visual-pipeline.json today; if Notifly opts into the canonical orchestrator later, those land then.
 
 > Goal: eliminate UAT guesswork. Every behavior that can be asserted in code should be. Manual UAT only covers what automation structurally cannot reach (visual pixel polish, the actual menu bar interaction, real Claude Code hook integration).
 
