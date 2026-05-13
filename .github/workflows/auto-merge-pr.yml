@@ -1,0 +1,39 @@
+name: auto-merge-pr
+
+# Auto-merge orchestrator (per ~/.claude/rules/qa-standards.md §9h).
+#
+# Arms GitHub's native auto-merge on every non-draft PR against `main`. Once
+# armed, GitHub squash-merges the PR automatically the moment all required
+# status checks (per ci/required-checks.txt + branch protection on `main`)
+# go green.
+#
+# Authority signal still flows through branch protection — this workflow
+# does NOT bypass any gate. PRs touching sensitive paths still trip
+# integrity-gate; the owner applies `owner-override` once, the gate goes
+# green, and auto-merge fires without a separate click on "Squash and merge".
+#
+# Drafts are skipped intentionally so PRs that aren't ready for review
+# (e.g., placeholders waiting on a paired commit from another lane) don't
+# auto-merge.
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+    branches: [main]
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  arm-auto-merge:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Arm auto-merge --squash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge --auto --squash \
+            "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" || echo "arm failed (non-fatal)"
